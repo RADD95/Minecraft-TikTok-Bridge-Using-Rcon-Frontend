@@ -1,18 +1,65 @@
-# React + Vite
+# Minecraft TikTok Bridge - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Panel web en React + Vite para editar overlays, administrar acciones y previsualizar overlays públicos para OBS.
 
-Currently, two official plugins are available:
+## Repos relacionados
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Frontend: [Minecraft-TikTok-Bridge-Using-Rcon-Frontend](https://github.com/RADD95/Minecraft-TikTok-Bridge-Using-Rcon-Frontend)
+- Backend: [Minecraft-TikTok-Bridge-Using-Rcon-Backend](https://github.com/RADD95/Minecraft-TikTok-Bridge-Using-Rcon-Backend)
 
-## React Compiler
+## Qué incluye
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- Dashboard principal.
+- Gestión de configuración.
+- Gestión de acciones.
+- Gestión de overlays.
+- Editor visual de overlays.
+- Vista pública de overlay en `/overlay/:id` para OBS.
 
-Note: This will impact Vite dev & build performances.
+## Requisitos
 
-## Expanding the ESLint configuration
+- Node.js 18+ recomendado.
+- Backend corriendo para responder a `/api/*`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Instalación
+
+```bash
+npm install
+```
+
+## Desarrollo
+
+```bash
+npm run dev
+```
+
+Por defecto el frontend corre en:
+
+- `http://localhost:5173`
+
+En desarrollo, Vite proxy apunta al backend en `http://localhost:4567`.
+
+## Build
+
+```bash
+npm run build
+```
+
+## Vista pública del overlay
+
+La ruta pública del overlay es:
+
+- `http://localhost:5173/overlay/:id`
+
+Esa vista está pensada para usarse como fuente de navegador en OBS.
+
+## Conexión con el backend
+
+Este frontend consume la API del backend por rutas `/api/*`.
+En desarrollo, el proxy Vite resuelve eso automáticamente.
+
+Si despliegas frontend y backend separados, debes asegurarte de que el frontend pueda alcanzar el backend por la URL correcta en producción.
+
+## Nota
+
+Este repos no contiene la lógica de RCON, TikTok LIVE ni persistencia. Esa parte vive en el repositorio del backend.
