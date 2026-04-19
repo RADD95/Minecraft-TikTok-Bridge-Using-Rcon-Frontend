@@ -176,14 +176,18 @@ function ActionsView() {
 
               return (
                 <div className="action-card" key={cardKey}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div className="action-card-header">
+                    <div className="action-card-tags">
                       <span className={`action-tag tag-${action.type || 'gift'}`}>
                         {action.type || 'gift'}
                       </span>
 
                       {action.trigger ? (
-                        <span className="action-tag" style={{ background: 'rgba(251,191,36,0.12)', color: '#fde68a' }}>
+                        <span
+                          className="action-tag action-tag-trigger"
+                          style={{ background: 'rgba(251,191,36,0.12)', color: '#fde68a' }}
+                          title={action.trigger}
+                        >
                           {action.trigger}
                         </span>
                       ) : null}
