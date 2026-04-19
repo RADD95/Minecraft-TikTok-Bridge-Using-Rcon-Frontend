@@ -220,7 +220,7 @@ function ActionsView() {
 
               const cardKey = `${originalIndex}-${action.name || 'action'}`
               const commandLines = String(action.command || '')
-                .split('\n')
+                .split(/[;\n]+/)
                 .map((line) => line.trim())
                 .filter(Boolean)
 
