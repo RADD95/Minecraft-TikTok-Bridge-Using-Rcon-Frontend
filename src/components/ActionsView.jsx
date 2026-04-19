@@ -5,6 +5,7 @@ import ActionFormModal from './ActionFormModal'
 
 function ActionsView() {
   const [actions, setActions] = useState([])
+  const [giftCatalog, setGiftCatalog] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -31,6 +32,56 @@ function ActionsView() {
   useEffect(() => {
     loadActions()
   }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    async function loadGiftCatalog() {
+      try {
+        const data = await apiGet('/api/gifts')
+        if (!alive) return
+
+        const list = Array.isArray(data?.gifts)
+          ? data.gifts
+          : Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data?.data)
+              ? data.data
+              : Array.isArray(data)
+                ? data
+                : []
+
+        const normalized = list
+          .map((gift, index) => ({
+            id: gift?.id || gift?.gift_id || `gift-${index}`,
+            name: String(gift?.name_en || gift?.name || gift?.title || '').trim(),
+            image: gift?.image_url || gift?.image || gift?.icon || ''
+          }))
+          .filter((gift) => gift.name)
+
+        setGiftCatalog(normalized)
+      } catch {
+        if (alive) setGiftCatalog([])
+      }
+    }
+
+    loadGiftCatalog()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const giftCatalogByName = useMemo(() => {
+    const map = new Map()
+
+    giftCatalog.forEach((gift) => {
+      const key = gift.name.toLowerCase()
+      if (!map.has(key)) map.set(key, gift)
+    })
+
+    return map
+  }, [giftCatalog])
 
   const filteredActions = useMemo(() => {
     return actions.filter((action) => {
@@ -164,6 +215,8 @@ function ActionsView() {
           >
             {filteredActions.map((action) => {
               const originalIndex = actions.indexOf(action)
+              const triggerKey = String(action.trigger || '').trim().toLowerCase()
+              const matchedGift = action.type === 'gift' ? giftCatalogByName.get(triggerKey) : null
 
               const cardKey = `${originalIndex}-${action.name || 'action'}`
               const commandLines = String(action.command || '')
@@ -188,6 +241,14 @@ function ActionsView() {
                           style={{ background: 'rgba(251,191,36,0.12)', color: '#fde68a' }}
                           title={action.trigger}
                         >
+                          {matchedGift?.image ? (
+                            <img
+                              className="action-tag-trigger-icon"
+                              src={matchedGift.image}
+                              alt={matchedGift.name}
+                              loading="lazy"
+                            />
+                          ) : null}
                           {action.trigger}
                         </span>
                       ) : null}

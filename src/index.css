@@ -957,6 +957,14 @@ select.input-field:focus {
   letter-spacing: normal;
 }
 
+.action-tag-trigger-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .tag-gift {
   background: rgba(244, 63, 94, 0.15);
   color: #f43f5e;
