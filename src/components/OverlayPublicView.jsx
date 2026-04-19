@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { resolveBackendUrl } from '../api/client'
 
 function normalizeOpacity(value) {
   const n = Number(value)
@@ -19,7 +20,7 @@ function getOverlayHash(overlay) {
 
 async function fetchPublicOverlay(overlayId, withCacheBuster = false) {
   const query = withCacheBuster ? `?t=${Date.now()}` : ''
-  const response = await fetch(`/api/public/overlays/${encodeURIComponent(overlayId)}${query}`)
+  const response = await fetch(resolveBackendUrl(`/api/public/overlays/${encodeURIComponent(overlayId)}${query}`))
 
   if (!response.ok) {
     throw new Error(`Overlay no encontrado (${response.status})`)

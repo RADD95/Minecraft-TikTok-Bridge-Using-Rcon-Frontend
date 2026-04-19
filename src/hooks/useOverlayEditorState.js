@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { apiGet, apiPost, apiPut } from '../api/client'
+import { apiGet, apiPost, apiPut, resolveBackendUrl } from '../api/client'
 import {
     createImageElement,
     createRectElement,
@@ -152,7 +152,7 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
 
         try {
             const cached = await apiPost('/api/cache-image', { url })
-            const finalUrl = cached?.cachedUrl || url
+            const finalUrl = cached?.cachedUrl ? resolveBackendUrl(cached.cachedUrl) : url
             addImageFromUrl(finalUrl, 'Imagen externa')
         } catch {
             addImageFromUrl(url, 'Imagen externa')

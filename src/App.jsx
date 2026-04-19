@@ -1,6 +1,6 @@
 // src/App.jsx - Componente raíz de la aplicación React, maneja autenticación, navegación y estado global
 import { useEffect, useState, useCallback } from 'react'
-import { apiGet, apiPost } from './api/client'
+import { apiGet, apiPost, resolveBackendUrl } from './api/client'
 import LoginForm from './components/LoginForm'
 import Dashboard from './components/Dashboard'
 import ConfigView from './components/ConfigView'
@@ -121,7 +121,7 @@ function App() {
   const connectSSE = useCallback(() => {
     if (!isLogged) return null
 
-    const eventSource = new EventSource('/api/logs/stream', {
+    const eventSource = new EventSource(resolveBackendUrl('/api/logs/stream'), {
       withCredentials: true
     })
 

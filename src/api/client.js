@@ -1,6 +1,20 @@
 // src/api/client.js - Funciones de cliente para interactuar con la API del backend.
+const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
+
+export function resolveBackendUrl(path) {
+  const input = String(path || '').trim()
+  if (!input) return API_BASE_URL || '/'
+
+  if (/^https?:\/\//i.test(input)) {
+    return input
+  }
+
+  const normalizedPath = input.startsWith('/') ? input : `/${input}`
+  return API_BASE_URL ? `${API_BASE_URL}${normalizedPath}` : normalizedPath
+}
+
 export async function apiFetch(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(resolveBackendUrl(path), {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',

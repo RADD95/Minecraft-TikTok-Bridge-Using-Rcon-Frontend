@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { apiGet, apiPost } from '../api/client'
+import { apiGet, apiPost, resolveBackendUrl } from '../api/client'
 import { normalizeLibraryList } from './overlayEditorUtils'
 
 const BROKEN_IMAGE_CACHE_KEY = 'overlay-library-broken-image-cache-v1'
@@ -80,8 +80,8 @@ function useOverlayLibraries() {
     async function loadLibraries() {
         try {
             const [giftsRes, rendersRes, actionsData] = await Promise.all([
-                fetch('/data/regalos_tiktok.json', { credentials: 'include' }).catch(() => null),
-                fetch('/data/minecraft_renders.json', { credentials: 'include' }).catch(() => null),
+                fetch(resolveBackendUrl('/data/regalos_tiktok.json'), { credentials: 'include' }).catch(() => null),
+                fetch(resolveBackendUrl('/data/minecraft_renders.json'), { credentials: 'include' }).catch(() => null),
                 apiGet('/api/actions').catch(() => [])
             ])
 
@@ -124,7 +124,7 @@ function useOverlayLibraries() {
                         const cachedUrl = cached?.cachedUrl ? String(cached.cachedUrl) : ''
                         if (!cachedUrl) return null
 
-                        return { originalUrl: url, cachedUrl }
+                        return { originalUrl: url, cachedUrl: resolveBackendUrl(cachedUrl) }
                     } catch {
                         return null
                     }

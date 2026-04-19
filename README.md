@@ -27,6 +27,28 @@ Panel web en React + Vite para editar overlays, administrar acciones y previsual
 npm install
 ```
 
+## Variables de entorno
+
+Este repo incluye un archivo de ejemplo:
+
+- `.env.example`
+
+Para desarrollo local:
+
+```bash
+cp .env.example .env
+```
+
+Variables usadas:
+
+- `VITE_API_BASE_URL`: URL pública del backend. Si está vacía, usa rutas relativas.
+- `VITE_DEV_API_PROXY_TARGET`: backend objetivo del proxy de Vite en desarrollo.
+
+Valores recomendados:
+
+- Local: `VITE_API_BASE_URL=` y `VITE_DEV_API_PROXY_TARGET=http://localhost:4567`
+- Producción (Vercel): `VITE_API_BASE_URL=https://verce.com`
+
 ## Desarrollo
 
 ```bash
@@ -59,6 +81,10 @@ Este frontend consume la API del backend por rutas `/api/*`.
 En desarrollo, el proxy Vite resuelve eso automáticamente.
 
 Si despliegas frontend y backend separados, debes asegurarte de que el frontend pueda alcanzar el backend por la URL correcta en producción.
+
+En Vercel define al menos:
+
+- `VITE_API_BASE_URL=https://mc.cholate.online`
 
 ## Nota
 
