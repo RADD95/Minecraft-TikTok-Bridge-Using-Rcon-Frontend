@@ -4,7 +4,10 @@ const defaultEditState = {
   title: '',
   description: '',
   minecraftVersion: '',
-  tags: ''
+  tags: '',
+  command: '',
+  useQueue: false,
+  repeatPerUnit: true
 }
 
 function GalleryEditModal({ open, item, onClose, onUpdate, updating = false }) {
@@ -17,7 +20,10 @@ function GalleryEditModal({ open, item, onClose, onUpdate, updating = false }) {
         title: item.title || '',
         description: item.description || '',
         minecraftVersion: item.minecraftVersion || '',
-        tags: item.tags?.join(', ') || ''
+        tags: item.tags?.join(', ') || '',
+        command: item.command || '',
+        useQueue: !!item.useQueue,
+        repeatPerUnit: !!item.repeatPerUnit
       })
       setError('')
     }
@@ -38,6 +44,16 @@ function GalleryEditModal({ open, item, onClose, onUpdate, updating = false }) {
       return
     }
 
+    if (!form.command.trim()) {
+      setError('El comando es requerido')
+      return
+    }
+
+    if (form.command.trim().length > 4000) {
+      setError('Comando demasiado largo (max 4000 caracteres)')
+      return
+    }
+
     const versionRegex = /^[\d.]+$/
     if (!versionRegex.test(form.minecraftVersion.trim())) {
       setError('Version invalida. Solo numeros y puntos (ej: 1.20, 1.20.1)')
@@ -49,6 +65,9 @@ function GalleryEditModal({ open, item, onClose, onUpdate, updating = false }) {
         title: form.title.trim(),
         description: form.description.trim(),
         minecraftVersion: form.minecraftVersion.trim(),
+        command: form.command.trim(),
+        useQueue: !!form.useQueue,
+        repeatPerUnit: !!form.repeatPerUnit,
         tags: form.tags
           .split(',')
           .map((t) => t.trim())
@@ -144,6 +163,49 @@ function GalleryEditModal({ open, item, onClose, onUpdate, updating = false }) {
               disabled={updating}
               style={{ minHeight: '90px' }}
             />
+          </div>
+
+          <div className="form-group">
+            <label>Comando / Código *</label>
+            <textarea
+              className="code-editor"
+              value={form.command}
+              onChange={(e) => setForm((prev) => ({ ...prev, command: e.target.value }))}
+              placeholder="Pega o edita el comando aquí. Se guardan saltos de línea."
+              disabled={updating}
+              style={{ minHeight: '170px', whiteSpace: 'pre' }}
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label style={{ marginBottom: '0.5rem', display: 'block' }}>Configuración de ejecución</label>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <label className="toggle-container" style={{ margin: 0 }}>
+                <span className="toggle-label">Queue</span>
+                <input
+                  type="checkbox"
+                  checked={form.useQueue}
+                  onChange={(e) => setForm((prev) => ({ ...prev, useQueue: e.target.checked }))}
+                  disabled={updating}
+                />
+                <div className="toggle-switch">
+                  <span className="toggle-slider"></span>
+                </div>
+              </label>
+
+              <label className="toggle-container" style={{ margin: 0 }}>
+                <span className="toggle-label">Combo</span>
+                <input
+                  type="checkbox"
+                  checked={form.repeatPerUnit}
+                  onChange={(e) => setForm((prev) => ({ ...prev, repeatPerUnit: e.target.checked }))}
+                  disabled={updating}
+                />
+                <div className="toggle-switch">
+                  <span className="toggle-slider"></span>
+                </div>
+              </label>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
