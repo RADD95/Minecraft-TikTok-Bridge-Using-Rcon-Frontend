@@ -200,7 +200,18 @@ function GalleryView({ user }) {
     }
 
     const normalizedCommand = String(item?.command || '').trim()
-    const duplicateCount = myActions.filter((action) => {
+
+    let latestActions = myActions
+    try {
+      const latestData = await apiGet('/api/actions')
+      latestActions = Array.isArray(latestData?.actions) ? latestData.actions : []
+      setMyActions(latestActions)
+    } catch {
+      // Si falla el refresh, usar el estado local actual como respaldo.
+      latestActions = myActions
+    }
+
+    const duplicateCount = latestActions.filter((action) => {
       return String(action?.command || '').trim() === normalizedCommand
     }).length
 
