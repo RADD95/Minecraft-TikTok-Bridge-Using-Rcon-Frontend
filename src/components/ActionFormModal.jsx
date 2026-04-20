@@ -7,7 +7,7 @@ const defaultAction = {
   type: 'gift',
   trigger: '',
   command: '',
-  useQueue: true,
+  useQueue: false,
   repeatPerUnit: false
 }
 
@@ -106,9 +106,10 @@ function ActionFormModal({ open, action, onClose, onSave }) {
         const words = name.split(/\s+/).filter(Boolean)
 
         if (name === term) return { gift, rank: 0 }
-        if (name.startsWith(term)) return { gift, rank: 1 }
-        if (words.some((word) => word.startsWith(term))) return { gift, rank: 2 }
-        if (name.includes(term)) return { gift, rank: 3 }
+        if (words.some((word) => word === term)) return { gift, rank: 1 }
+        if (name.startsWith(term)) return { gift, rank: 2 }
+        if (words.some((word) => word.startsWith(term))) return { gift, rank: 3 }
+        if (name.includes(term)) return { gift, rank: 4 }
 
         return null
       })
@@ -119,12 +120,8 @@ function ActionFormModal({ open, action, onClose, onSave }) {
         return a.gift.name.localeCompare(b.gift.name)
       })
 
-    // Cuando ya hay resultados fuertes (exact/prefix), ocultamos coincidencias débiles.
-    const hasStrongMatches = ranked.some((entry) => entry.rank <= 2)
-    const filtered = hasStrongMatches ? ranked.filter((entry) => entry.rank <= 2) : ranked
-
-    return filtered
-      .slice(0, 8)
+    return ranked
+      .slice(0, 20)
       .map((entry) => entry.gift)
   }, [form.type, form.trigger, giftCatalog])
 
@@ -304,6 +301,7 @@ function ActionFormModal({ open, action, onClose, onSave }) {
               <span className="toggle-label">Usar cola</span>
               <input
                 type="checkbox"
+                checked={form.useQueue}
                 onChange={(e) => setForm((prev) => ({ ...prev, useQueue: e.target.checked }))}
               />
               <div className="toggle-switch">
