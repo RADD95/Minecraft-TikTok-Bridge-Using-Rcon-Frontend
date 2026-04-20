@@ -8,7 +8,7 @@ const defaultAction = {
   trigger: '',
   command: '',
   useQueue: false,
-  repeatPerUnit: false
+  repeatPerUnit: true
 }
 
 function ActionFormModal({ open, action, onClose, onSave }) {
