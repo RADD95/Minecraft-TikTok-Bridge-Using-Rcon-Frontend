@@ -13,6 +13,7 @@ function ActionsView() {
   const [filterType, setFilterType] = useState('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
+  const [testingIndex, setTestingIndex] = useState(null)
 
   async function loadActions() {
     setLoading(true)
@@ -144,6 +145,25 @@ function ActionsView() {
     }
   }
 
+  async function handleTest(index) {
+    setError('')
+    setMessage('')
+    setTestingIndex(index)
+
+    try {
+      const result = await apiPost(`/api/actions/${index}/test`, {})
+      const executed = Number(result?.executed || 0)
+      const queued = Number(result?.queued || 0)
+      const totalCommands = Array.isArray(result?.commands) ? result.commands.length : 0
+
+      setMessage(`Test enviado: ${totalCommands} cmd(s) · ejecutados ${executed} · en cola ${queued}`)
+    } catch (err) {
+      setError(err.message || 'No se pudo ejecutar el test de la acción')
+    } finally {
+      setTestingIndex(null)
+    }
+  }
+
   return (
     <div className="view">
       <div className="header">
@@ -255,6 +275,15 @@ function ActionsView() {
                     </div>
 
                     <div className="action-controls">
+                      <button
+                        className="btn-icon"
+                        onClick={() => handleTest(originalIndex)}
+                        disabled={testingIndex !== null}
+                        title="Probar acción"
+                      >
+                        <i className={`fa-solid ${testingIndex === originalIndex ? 'fa-spinner fa-spin' : 'fa-play'}`}></i>
+                      </button>
+
                       <button className="btn-icon" onClick={() => openEditModal(originalIndex)}>
                         <i className="fa-solid fa-pen"></i>
                       </button>
