@@ -41,6 +41,10 @@ function App() {
       message: 'Sistema iniciado y listo...'
     }
   ])
+  const [quickActionLoading, setQuickActionLoading] = useState({
+    rcon: false,
+    tiktok: false
+  })
 
   const rconOnline =
     typeof globalStatus?.rcon === 'object'
@@ -116,6 +120,70 @@ function App() {
   function handleLogin(userData) {
     setIsLogged(true)
     setUser(userData || null)
+  }
+
+  async function refreshGlobalStatus() {
+    try {
+      const status = await apiGet('/api/status')
+      setGlobalStatus((prev) => ({
+        ...prev,
+        ...status
+      }))
+    } catch (err) {
+      console.error('Error refrescando estado global:', err)
+    }
+  }
+
+  async function handleQuickRconToggle() {
+    if (quickActionLoading.rcon) return
+
+    setQuickActionLoading((prev) => ({ ...prev, rcon: true }))
+
+    try {
+      if (rconOnline) {
+        await apiPost('/api/rcon/disconnect', {})
+      } else {
+        await apiPost('/api/rcon/connect', {})
+      }
+
+      await refreshGlobalStatus()
+    } catch (err) {
+      console.error('Error en acción rápida de RCON:', err)
+    } finally {
+      setQuickActionLoading((prev) => ({ ...prev, rcon: false }))
+    }
+  }
+
+  async function handleQuickTikTokToggle() {
+    if (quickActionLoading.tiktok) return
+
+    setQuickActionLoading((prev) => ({ ...prev, tiktok: true }))
+
+    try {
+      if (tiktokOnline) {
+        await apiPost('/api/tiktok/stop', {})
+      } else {
+        const data = await apiGet('/api/config')
+        const source = data?.effectiveConfig || data?.config || data || {}
+        const username = String(source?.tiktok?.username || '')
+          .trim()
+          .replace(/^@+/, '')
+
+        if (!username) {
+          alert('Configura primero el usuario de TikTok para poder iniciar la conexión.')
+          setActiveView('config')
+          return
+        }
+
+        await apiPost('/api/tiktok/start', { username })
+      }
+
+      await refreshGlobalStatus()
+    } catch (err) {
+      console.error('Error en acción rápida de TikTok:', err)
+    } finally {
+      setQuickActionLoading((prev) => ({ ...prev, tiktok: false }))
+    }
   }
 
   const connectSSE = useCallback(() => {
@@ -445,12 +513,30 @@ function App() {
           <div className="global-toolbar-left">
             <span className="toolbar-label">Conexiones rápidas:</span>
 
-            <button className={`btn ${rconOnline ? 'btn-success' : 'btn-secondary'} toolbar-btn`}>
-              <i className="fa-solid fa-cube"></i> RCON {rconOnline ? 'Online' : 'Offline'}
+            <button
+              className={`btn ${rconOnline ? 'btn-success' : 'btn-secondary'} toolbar-btn`}
+              onClick={handleQuickRconToggle}
+              disabled={quickActionLoading.rcon || quickActionLoading.tiktok}
+            >
+              <i className="fa-solid fa-cube"></i>{' '}
+              {quickActionLoading.rcon
+                ? rconOnline
+                  ? 'Desconectando RCON...'
+                  : 'Conectando RCON...'
+                : `RCON ${rconOnline ? 'Online' : 'Offline'}`}
             </button>
 
-            <button className={`btn ${tiktokOnline ? 'btn-success' : 'btn-secondary'} toolbar-btn`}>
-              <i className="fa-brands fa-tiktok"></i> TikTok {tiktokOnline ? 'Online' : 'Offline'}
+            <button
+              className={`btn ${tiktokOnline ? 'btn-success' : 'btn-secondary'} toolbar-btn`}
+              onClick={handleQuickTikTokToggle}
+              disabled={quickActionLoading.rcon || quickActionLoading.tiktok}
+            >
+              <i className="fa-brands fa-tiktok"></i>{' '}
+              {quickActionLoading.tiktok
+                ? tiktokOnline
+                  ? 'Deteniendo TikTok...'
+                  : 'Iniciando TikTok...'
+                : `TikTok ${tiktokOnline ? 'Online' : 'Offline'}`}
             </button>
           </div>
 
