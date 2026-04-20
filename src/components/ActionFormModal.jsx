@@ -1,6 +1,7 @@
 // src/components/ActionFormModal.jsx - Componente modal para crear o editar acciones personalizadas basadas en eventos de TikTok LIVE
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { apiGet } from '../api/client'
+import { apiGet, apiPost } from '../api/client'
+import { fireSwal } from '../utils/swal'
 
 const defaultAction = {
   name: '',
@@ -8,15 +9,22 @@ const defaultAction = {
   trigger: '',
   command: '',
   useQueue: false,
-  repeatPerUnit: true
+  repeatPerUnit: true,
+  minecraftVersion: '',
+  folder: '',
+  enabled: true
 }
 
-function ActionFormModal({ open, action, onClose, onSave }) {
+function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
   const [form, setForm] = useState(defaultAction)
   const [giftCatalog, setGiftCatalog] = useState([])
   const [giftSuggestionsOpen, setGiftSuggestionsOpen] = useState(false)
   const [giftLoading, setGiftLoading] = useState(false)
+  const [folders, setFolders] = useState([])
+  const [folderSuggestionsOpen, setFolderSuggestionsOpen] = useState(false)
+  const [folderLoading, setFolderLoading] = useState(false)
   const giftAutocompleteRef = useRef(null)
+  const folderAutocompleteRef = useRef(null)
 
   useEffect(() => {
     if (action) {
@@ -26,7 +34,10 @@ function ActionFormModal({ open, action, onClose, onSave }) {
         trigger: action.trigger || '',
         command: action.command || '',
         useQueue: !!action.useQueue,
-        repeatPerUnit: !!action.repeatPerUnit
+        repeatPerUnit: !!action.repeatPerUnit,
+        minecraftVersion: action.minecraftVersion || '',
+        folder: action.folder || '',
+        enabled: action.enabled !== false
       })
     } else {
       setForm(defaultAction)
@@ -94,6 +105,47 @@ function ActionFormModal({ open, action, onClose, onSave }) {
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+
+    let alive = true
+
+    async function loadFolders() {
+      setFolderLoading(true)
+      try {
+        const data = await apiGet('/api/folders')
+        if (!alive) return
+
+        const folderList = Array.isArray(data?.folders) ? data.folders : []
+        setFolders(folderList)
+      } catch {
+        if (alive) setFolders([])
+      } finally {
+        if (alive) setFolderLoading(false)
+      }
+    }
+
+    loadFolders()
+
+    return () => {
+      alive = false
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+
+    function handleOutsideClick(event) {
+      if (!folderAutocompleteRef.current) return
+      if (!folderAutocompleteRef.current.contains(event.target)) {
+        setFolderSuggestionsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [open])
+
   const giftSuggestions = useMemo(() => {
     if (form.type !== 'gift') return []
 
@@ -133,6 +185,24 @@ function ActionFormModal({ open, action, onClose, onSave }) {
     return giftCatalog.find((gift) => gift.name.toLowerCase() === trigger) || null
   }, [form.type, form.trigger, giftCatalog])
 
+  const folderSuggestions = useMemo(() => {
+    const term = form.folder.trim().toLowerCase()
+    if (!term) return folders.map((f) => ({ name: f.name, isExisting: true }))
+
+    const matching = folders.filter((f) => f.name.toLowerCase().includes(term))
+
+    // Mostrar carpetas que coincidan
+    const results = matching.map((f) => ({ name: f.name, isExisting: true }))
+
+    // Si el input no coincide exactamente con ninguna, permitir crear nueva
+    const exactMatch = folders.find((f) => f.name.toLowerCase() === term)
+    if (!exactMatch && term.length > 0) {
+      results.unshift({ name: term, isExisting: false, isNew: true })
+    }
+
+    return results
+  }, [form.folder, folders])
+
   if (!open) return null
 
   function getTriggerHint(type) {
@@ -150,19 +220,41 @@ function ActionFormModal({ open, action, onClose, onSave }) {
     }
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
 
     if (!form.command.trim()) {
-      alert('El comando es requerido')
+      await fireSwal({
+        icon: 'warning',
+        title: 'Campo requerido',
+        text: 'El comando es requerido',
+        confirmButtonText: 'Entendido'
+      })
       return
+    }
+
+    const trimmedFolder = form.folder.trim()
+
+    // Si hay carpeta y no existe, crearla
+    if (trimmedFolder && !folders.find((f) => f.name === trimmedFolder)) {
+      try {
+        await apiPost('/api/folders', { name: trimmedFolder })
+        // Notificar al padre que se creó una carpeta
+        if (onFoldersUpdate) onFoldersUpdate()
+      } catch (err) {
+        console.error('Error creando carpeta:', err)
+        // Continuar igual, se puede guardar sin carpeta
+      }
     }
 
     onSave({
       ...form,
       name: form.name.trim(),
       trigger: form.type === 'follow' ? '' : form.trigger.trim(),
-      command: form.command.trim()
+      command: form.command.trim(),
+      minecraftVersion: form.minecraftVersion.trim(),
+      folder: trimmedFolder,
+      enabled: form.enabled
     })
   }
 
@@ -323,6 +415,123 @@ function ActionFormModal({ open, action, onClose, onSave }) {
                 <span className="toggle-slider"></span>
               </div>
               <span className="toggle-hint">Ejecuta una vez por cada unidad del combo</span>
+            </label>
+          </div>
+
+          <div className="form-group">
+            <label>Versión de Minecraft (opcional)</label>
+            <input
+              type="text"
+              className="input-field"
+              placeholder="Ej: 1.20.1, 1.12.2"
+              value={form.minecraftVersion}
+              onChange={(e) => setForm((prev) => ({ ...prev, minecraftVersion: e.target.value }))}
+            />
+            <p className="hint-text">Útil para organizar acciones por servidor</p>
+          </div>
+
+          <div className="form-group">
+            <label>Carpeta (opcional)</label>
+            <div className="folder-autocomplete-container" ref={folderAutocompleteRef} style={{ position: 'relative' }}>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Ej: Server 1.20, Eventos, Decoración"
+                value={form.folder}
+                onFocus={() => {
+                  if (folders.length > 0 || form.folder.trim()) setFolderSuggestionsOpen(true)
+                }}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setForm((prev) => ({ ...prev, folder: value }))
+                  if (value.trim()) setFolderSuggestionsOpen(true)
+                }}
+              />
+
+              {folderSuggestionsOpen && !form.disabled ? (
+                <div
+                  className="folder-suggestions-popover"
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '0.5rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-glass)',
+                    borderRadius: 'var(--radius-md)',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    zIndex: 10
+                  }}
+                >
+                  {folderLoading ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                      Cargando...
+                    </div>
+                  ) : folderSuggestions.length === 0 ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                      Sin carpetas
+                    </div>
+                  ) : (
+                    folderSuggestions.map((suggestion, idx) => (
+                      <button
+                        key={`folder-${idx}-${suggestion.name}`}
+                        type="button"
+                        className="folder-suggestion-item"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                          padding: '0.75rem 1rem',
+                          width: '100%',
+                          textAlign: 'left',
+                          background: 'transparent',
+                          border: 'none',
+                          borderBottom: idx < folderSuggestions.length - 1 ? '1px solid var(--bg-tertiary)' : 'none',
+                          color: 'inherit',
+                          cursor: 'pointer',
+                          fontSize: '0.9rem'
+                        }}
+                        onMouseDown={() => {
+                          setForm((prev) => ({ ...prev, folder: suggestion.name }))
+                          setFolderSuggestionsOpen(false)
+                        }}
+                      >
+                        {suggestion.isNew ? (
+                          <>
+                            <i className="fa-solid fa-folder-plus" style={{ color: 'var(--accent-mc)' }}></i>
+                            <span>
+                              Crear: <strong>{suggestion.name}</strong>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-folder" style={{ color: '#a855f7' }}></i>
+                            <span>{suggestion.name}</span>
+                          </>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : null}
+            </div>
+            <p className="hint-text">Carpeta existente o crea una nueva escribiendo su nombre</p>
+          </div>
+
+          <div className="form-group">
+            <label className="toggle-container">
+              <span className="toggle-label">Habilitada</span>
+              <input
+                type="checkbox"
+                checked={form.enabled}
+                onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+              />
+              <div className="toggle-switch">
+                <span className="toggle-slider"></span>
+              </div>
+              <span className="toggle-hint">Desabilita para desactivar sin eliminar</span>
             </label>
           </div>
 

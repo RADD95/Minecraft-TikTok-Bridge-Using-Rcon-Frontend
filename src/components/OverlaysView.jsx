@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiDelete, apiGet, apiPost } from '../api/client'
 import OverlayEditor from './OverlayEditor'
+import { fireSwal } from '../utils/swal'
 
 function generateOverlayId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -135,8 +136,15 @@ function OverlaysView() {
   }
 
   async function handleDelete(id) {
-    const ok = window.confirm('¿Eliminar este overlay permanentemente?')
-    if (!ok) return
+    const result = await fireSwal({
+      icon: 'warning',
+      title: 'Eliminar overlay',
+      text: '¿Eliminar este overlay permanentemente?',
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar'
+    })
+    if (!result.isConfirmed) return
 
     setError('')
     setMessage('')

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost, apiPatch, apiDelete } from '../api/client'
+import { fireSwal } from '../utils/swal'
 
 function AdminUsersView({ currentUser }) {
   const [users, setUsers] = useState([])
@@ -153,11 +154,16 @@ function AdminUsersView({ currentUser }) {
   }
 
   async function handleDeleteUser(user) {
-    const confirmed = window.confirm(
-      `¿Seguro que quieres borrar al usuario "${user?.username}"?`
-    )
+    const result = await fireSwal({
+      icon: 'warning',
+      title: 'Eliminar usuario',
+      text: `¿Seguro que quieres borrar al usuario "${user?.username}"?`,
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar'
+    })
 
-    if (!confirmed) return
+    if (!result.isConfirmed) return
 
     try {
       setSaving(true)

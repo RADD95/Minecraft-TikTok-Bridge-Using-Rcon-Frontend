@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPost, apiPut, resolveBackendUrl } from '../api/client'
+import { fireSwal } from '../utils/swal'
 import {
     createImageElement,
     createRectElement,
@@ -140,14 +141,39 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
     }
 
     async function handleAddExternalImageClick() {
-        const useFile = window.confirm('Aceptar = subir archivo local. Cancelar = pegar URL externa.')
+        const sourceResult = await fireSwal({
+            icon: 'question',
+            title: 'Agregar imagen',
+            text: 'Elige el origen de la imagen.',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: 'Subir archivo local',
+            denyButtonText: 'Pegar URL externa',
+            cancelButtonText: 'Cancelar'
+        })
 
-        if (useFile) {
+        if (sourceResult.isConfirmed) {
             fileInputRef.current?.click()
             return
         }
 
-        const url = window.prompt('Pega la URL de la imagen o GIF')
+        if (!sourceResult.isDenied) return
+
+        const urlResult = await fireSwal({
+            title: 'URL de imagen o GIF',
+            input: 'text',
+            inputPlaceholder: 'https://...',
+            showCancelButton: true,
+            confirmButtonText: 'Agregar',
+            cancelButtonText: 'Cancelar',
+            inputValidator: (value) => {
+                if (!value || !String(value).trim()) return 'Ingresa una URL válida'
+                return null
+            }
+        })
+        if (!urlResult.isConfirmed) return
+
+        const url = String(urlResult.value || '').trim()
         if (!url) return
 
         try {
@@ -192,9 +218,16 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
         updateElementField(selectedElementId, field, value)
     }
 
-    function deleteElement(elementId) {
-        const ok = window.confirm('¿Eliminar este elemento?')
-        if (!ok) return
+    async function deleteElement(elementId) {
+        const result = await fireSwal({
+            icon: 'warning',
+            title: 'Eliminar elemento',
+            text: '¿Eliminar este elemento?',
+            showCancelButton: true,
+            confirmButtonText: 'Eliminar',
+            cancelButtonText: 'Cancelar'
+        })
+        if (!result.isConfirmed) return
 
         setOverlay((prev) => ({
             ...prev,

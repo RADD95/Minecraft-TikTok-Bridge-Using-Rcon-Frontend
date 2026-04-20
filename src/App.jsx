@@ -7,6 +7,8 @@ import ConfigView from './components/ConfigView'
 import ActionsView from './components/ActionsView'
 import AdminUsersView from './components/AdminUsersView'
 import OverlaysView from './components/OverlaysView'
+import GalleryView from './components/GalleryView'
+import { fireSwal } from './utils/swal'
 
 function App() {
   const [checkingAuth, setCheckingAuth] = useState(true)
@@ -170,7 +172,12 @@ function App() {
           .replace(/^@+/, '')
 
         if (!username) {
-          alert('Configura primero el usuario de TikTok para poder iniciar la conexión.')
+          await fireSwal({
+            icon: 'warning',
+            title: 'Falta configurar TikTok',
+            text: 'Configura primero el usuario de TikTok para poder iniciar la conexión.',
+            confirmButtonText: 'Ir a Configuración'
+          })
           setActiveView('config')
           return
         }
@@ -430,6 +437,14 @@ function App() {
           <div className="nav-section">
             <div className="nav-label">Herramientas</div>
 
+            <button
+              className={`nav-item ${activeView === 'gallery' ? 'active' : ''}`}
+              onClick={() => setActiveView('gallery')}
+            >
+              <i className="fa-solid fa-store"></i>
+              <span>Galeria</span>
+            </button>
+
             {isAdmin ? (
               <button
                 className={`nav-item ${activeView === 'users' ? 'active' : ''}`}
@@ -583,6 +598,8 @@ function App() {
         {activeView === 'actions' ? <ActionsView /> : null}
 
         {activeView === 'overlays' ? <OverlaysView /> : null}
+
+        {activeView === 'gallery' ? <GalleryView user={user} /> : null}
 
         {activeView === 'users' && isAdmin ? (
           <AdminUsersView currentUser={user} />

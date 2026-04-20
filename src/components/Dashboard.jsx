@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiPost } from '../api/client'
+import { fireSwal } from '../utils/swal'
 
 function Dashboard({
   user,
@@ -44,11 +45,16 @@ function Dashboard({
   async function handleResetStats() {
     if (resettingStats) return
 
-    const confirmed = window.confirm(
-      '¿Seguro que quieres resetear las estadísticas de esta sesión?'
-    )
+    const result = await fireSwal({
+      icon: 'warning',
+      title: 'Resetear estadísticas',
+      text: '¿Seguro que quieres resetear las estadísticas de esta sesión?',
+      showCancelButton: true,
+      confirmButtonText: 'Resetear',
+      cancelButtonText: 'Cancelar'
+    })
 
-    if (!confirmed) return
+    if (!result.isConfirmed) return
 
     setError('')
     setResettingStats(true)
@@ -82,11 +88,16 @@ function Dashboard({
   async function clearLogs() {
     if (clearingLogs) return
 
-    const confirmed = window.confirm(
-      '¿Seguro que quieres limpiar la consola visible de esta sesión?'
-    )
+    const result = await fireSwal({
+      icon: 'warning',
+      title: 'Limpiar consola',
+      text: '¿Seguro que quieres limpiar la consola visible de esta sesión?',
+      showCancelButton: true,
+      confirmButtonText: 'Limpiar',
+      cancelButtonText: 'Cancelar'
+    })
 
-    if (!confirmed) return
+    if (!result.isConfirmed) return
 
     setClearingLogs(true)
     setError('')
