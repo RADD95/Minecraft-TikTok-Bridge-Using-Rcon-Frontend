@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiGet } from '../api/client'
 
-function GalleryActionDetailModal({ open, item, onClose }) {
+function GalleryActionDetailModal({ open, item, onClose, onImport }) {
   const [giftCatalog, setGiftCatalog] = useState([])
+  const [importing, setImporting] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setImporting(false)
+    }
+  }, [open, item?.id])
 
   useEffect(() => {
     let alive = true
@@ -63,6 +70,18 @@ function GalleryActionDetailModal({ open, item, onClose }) {
     .map((line) => line.trim())
     .filter(Boolean)
 
+  async function handleImportFromModal() {
+    if (typeof onImport !== 'function' || importing) return
+
+    try {
+      setImporting(true)
+      await onImport()
+      onClose()
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
@@ -80,14 +99,28 @@ function GalleryActionDetailModal({ open, item, onClose }) {
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
             <h2 style={{ marginBottom: 0 }}>{item.title}</h2>
-            <button
-              className="btn-icon"
-              onClick={onClose}
-              title="Cerrar"
-              style={{ fontSize: '1.25rem' }}
-            >
-              <i className="fa-solid fa-xmark"></i>
-            </button>
+
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleImportFromModal}
+                disabled={importing}
+                title="Importar acción"
+                style={{ padding: '0.45rem 0.75rem' }}
+              >
+                <i className="fa-solid fa-download"></i>{' '}
+                {importing ? 'Importando...' : 'Importar'}
+              </button>
+
+              <button
+                className="btn-icon"
+                onClick={onClose}
+                title="Cerrar"
+                style={{ fontSize: '1.25rem' }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
             por @{item.authorName}
@@ -245,6 +278,7 @@ function GalleryActionDetailModal({ open, item, onClose }) {
             </div>
           </div>
         ) : null}
+
       </div>
     </div>
   )

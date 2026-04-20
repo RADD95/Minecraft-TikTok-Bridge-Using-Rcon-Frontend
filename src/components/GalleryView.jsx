@@ -8,6 +8,7 @@ import { fireSwal } from '../utils/swal'
 function GalleryView({ user }) {
   const [items, setItems] = useState([])
   const [myActions, setMyActions] = useState([])
+  const [folders, setFolders] = useState([])
   const [giftCatalog, setGiftCatalog] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -50,7 +51,28 @@ function GalleryView({ user }) {
         if (!search.trim()) return true
         
         const searchLower = search.toLowerCase().trim()
-        const searchableText = `${item.title || ''} ${item.trigger || ''} ${item.name || ''} ${item.description || ''} ${item.minecraftVersion || ''} ${item.type || ''}`.toLowerCase()
+        const tagsText = Array.isArray(item.tags) ? item.tags.join(' ') : ''
+        const searchableText = `${
+          item.title || ''
+        } ${
+          item.trigger || ''
+        } ${
+          item.name || ''
+        } ${
+          item.description || ''
+        } ${
+          item.minecraftVersion || ''
+        } ${
+          item.type || ''
+        } ${
+          item.command || ''
+        } ${
+          item.authorName || ''
+        } ${
+          tagsText
+        } ${
+          item.importsCount || ''
+        }`.toLowerCase()
         
         return searchableText.includes(searchLower)
       })
@@ -74,12 +96,22 @@ function GalleryView({ user }) {
     }
   }
 
+  async function loadFolders() {
+    try {
+      const data = await apiGet('/api/folders')
+      setFolders(Array.isArray(data?.folders) ? data.folders : [])
+    } catch {
+      setFolders([])
+    }
+  }
+
   useEffect(() => {
     loadGallery()
   }, [type, mineOnly, search])
 
   useEffect(() => {
     loadMyActions()
+    loadFolders()
   }, [])
 
   useEffect(() => {
@@ -136,14 +168,63 @@ function GalleryView({ user }) {
     }
   }
 
-  async function handleImport(id) {
+  async function handleImport(item, options = {}) {
+    if (!item?.id) return
+
+    let folder = String(options.folder || '').trim()
+
+    if (options.askFolder) {
+      const folderOptions = {
+        '': 'Sin carpeta'
+      }
+
+      folders.forEach((f) => {
+        if (f?.name) {
+          folderOptions[f.name] = f.name
+        }
+      })
+
+      const folderPick = await fireSwal({
+        title: 'Importar acción',
+        text: 'Elige carpeta destino (opcional)',
+        input: 'select',
+        inputOptions: folderOptions,
+        inputValue: folder,
+        showCancelButton: true,
+        confirmButtonText: 'Continuar',
+        cancelButtonText: 'Cancelar'
+      })
+
+      if (!folderPick.isConfirmed) return
+      folder = String(folderPick.value || '').trim()
+    }
+
+    const normalizedCommand = String(item?.command || '').trim()
+    const duplicateCount = myActions.filter((action) => {
+      return String(action?.command || '').trim() === normalizedCommand
+    }).length
+
+    if (duplicateCount > 0) {
+      const warning = await fireSwal({
+        icon: 'warning',
+        title: 'Comando ya existente',
+        html: `<p>Ya tienes <strong>${duplicateCount}</strong> acción(es) con este comando.</p><p>¿Importar de todas formas?</p>`,
+        showCancelButton: true,
+        confirmButtonText: 'Sí, importar igual',
+        cancelButtonText: 'Cancelar'
+      })
+
+      if (!warning.isConfirmed) return
+    }
+
     setError('')
     setMessage('')
 
     try {
-      await apiPost(`/api/gallery/actions/${id}/import`, {})
-      setMessage('Accion importada a tus acciones')
+      await apiPost(`/api/gallery/actions/${item.id}/import`, { folder })
+      setMessage(folder ? `Accion importada a la carpeta "${folder}"` : 'Accion importada a tus acciones')
       await loadMyActions()
+      await loadFolders()
       await loadGallery({ silent: true })
     } catch (err) {
       setError(err.message || 'No se pudo importar la accion')
@@ -287,66 +368,73 @@ function GalleryView({ user }) {
                     ) : null}
                   </div>
 
-                  <div className="action-controls">
-                    <button
-                      className="btn-icon"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleImport(item.id)
-                      }}
-                      title="Importar accion"
-                    >
-                      <i className="fa-solid fa-download"></i>
-                    </button>
+                  <div className="gallery-card-header-right">
+                    <div className="action-controls">
+                      <button
+                        className="btn-icon"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleImport(item, { askFolder: true })
+                        }}
+                        title="Importar accion"
+                      >
+                        <i className="fa-solid fa-download"></i>
+                      </button>
 
-                    {item.canDelete || isAdmin ? (
-                      <>
-                        <button
-                          className="btn-icon"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditOpen(item)
-                          }}
-                          title="Editar accion"
-                        >
-                          <i className="fa-solid fa-pen"></i>
-                        </button>
-                        <button
-                          className="btn-icon delete"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDelete(item.id)
-                          }}
-                          title="Borrar de galeria"
-                        >
-                          <i className="fa-solid fa-trash"></i>
-                        </button>
-                      </>
-                    ) : null}
+                      {item.canDelete || isAdmin ? (
+                        <>
+                          <button
+                            className="btn-icon"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEditOpen(item)
+                            }}
+                            title="Editar accion"
+                          >
+                            <i className="fa-solid fa-pen"></i>
+                          </button>
+                          <button
+                            className="btn-icon delete"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(item.id)
+                            }}
+                            title="Borrar de galeria"
+                          >
+                            <i className="fa-solid fa-trash"></i>
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+
+                    <div className="gallery-version-chip" title={`Minecraft ${item.minecraftVersion}`}>
+                      MC {item.minecraftVersion}
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ marginTop: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div className="gallery-card-body">
                   <div className="action-trigger" style={{ marginBottom: '0.35rem' }}>{item.title}</div>
-                  <div className="hint-text" style={{ marginBottom: '0.5rem' }}>por @{item.authorName}</div>
                   {item.description ? (
-                    <div className="action-command-preview" style={{ marginBottom: '0.5rem', whiteSpace: 'normal', color: 'var(--text-secondary)' }}>
-                      {item.description.substring(0, 80)}
-                      {item.description.length > 80 ? '...' : ''}
+                    <div className="gallery-card-description" title={item.description}>
+                      {item.description}
                     </div>
                   ) : null}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem', marginTop: 'auto' }}>
-                    <div className="command-pill" style={{ background: 'rgba(34, 197, 94, 0.12)', color: '#22c55e', fontSize: '0.8rem' }}>
-                      MC {item.minecraftVersion}
-                    </div>
+                  <div className="gallery-card-meta-grid">
                     <div className="command-pill" style={{ fontSize: '0.8rem', background: 'rgba(100, 116, 139, 0.12)', color: '#cbd5e1' }}>
                       Imports: {item.importsCount || 0}
                     </div>
                   </div>
 
-                  <div className="action-command-preview" style={{ fontSize: '0.8rem' }}>
-                    Queue: {item.useQueue ? '✓' : '✗'} · Combo: {item.repeatPerUnit ? '✓' : '✗'}
+                  <div className="gallery-card-footer">
+                    <div className="action-command-preview" style={{ fontSize: '0.8rem' }}>
+                      Queue: {item.useQueue ? '✓' : '✗'} · Combo: {item.repeatPerUnit ? '✓' : '✗'}
+                    </div>
+
+                    <div className="gallery-card-author" title={`@${item.authorName || 'anon'}`}>
+                      @{item.authorName || 'anon'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -367,6 +455,7 @@ function GalleryView({ user }) {
         open={detailModalOpen}
         item={detailItem}
         onClose={() => setDetailModalOpen(false)}
+        onImport={() => handleImport(detailItem, { askFolder: true })}
       />
 
       <GalleryEditModal
