@@ -114,24 +114,32 @@ function useOverlayLibraries() {
                 ...normalizedRenders.map((item) => ({ kind: 'render', item }))
             ].filter(({ item }) => isRemoteCacheableUrl(item.__image))
 
-            void Promise.allSettled(
-                cacheTargets.map(async ({ item }) => {
-                    const url = String(item.__image || '').trim()
-                    if (!url) return null
+            // Limit concurrency for cache requests to avoid exhausting browser/server resources
+            void (async () => {
+                const limit = 6
+                const results = []
+                for (let i = 0; i < cacheTargets.length; i += limit) {
+                    const batch = cacheTargets.slice(i, i + limit)
+                    const batchResults = await Promise.allSettled(
+                        batch.map(async ({ item }) => {
+                            const url = String(item.__image || '').trim()
+                            if (!url) return null
 
-                    try {
-                        const cached = await apiPost('/api/cache-image', { url })
-                        const cachedUrl = cached?.cachedUrl ? String(cached.cachedUrl) : ''
-                        if (!cachedUrl) return null
+                            try {
+                                const cached = await apiPost('/api/cache-image', { url })
+                                const cachedUrl = cached?.cachedUrl ? String(cached.cachedUrl) : ''
+                                if (!cachedUrl) return null
 
-                        return { originalUrl: url, cachedUrl: resolveBackendUrl(cachedUrl) }
-                    } catch {
-                        return null
-                    }
-                })
-            ).then((results) => {
+                                return { originalUrl: url, cachedUrl: resolveBackendUrl(cachedUrl) }
+                            } catch {
+                                return null
+                            }
+                        })
+                    )
+                    results.push(...batchResults)
+                }
+
                 const urlMap = new Map()
-
                 for (const result of results) {
                     if (result.status !== 'fulfilled' || !result.value) continue
                     urlMap.set(result.value.originalUrl, result.value.cachedUrl)
@@ -147,7 +155,7 @@ function useOverlayLibraries() {
                     ...item,
                     __cachedImage: urlMap.get(item.__image) || item.__cachedImage || ''
                 })))
-            })
+            })()
         } catch (error) {
             console.error('loadLibraries error:', error)
             setGifts([])

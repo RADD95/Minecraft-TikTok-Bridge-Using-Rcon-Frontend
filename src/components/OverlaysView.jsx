@@ -1,5 +1,5 @@
 // src/components/OverlaysView.jsx - Vista React para listar, crear, duplicar y borrar overlays, abriendo el editor solo al seleccionar uno
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiDelete, apiGet, apiPost } from '../api/client'
 import OverlayEditor from './OverlayEditor'
 import { fireSwal } from '../utils/swal'
@@ -54,7 +54,7 @@ function getOverlayPublicUrl(overlayId) {
   return `${origin}/overlay/${safeId}`
 }
 
-function OverlaysView() {
+function OverlaysView({ onEditorGuardChange }) {
   const [overlays, setOverlays] = useState([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -62,6 +62,8 @@ function OverlaysView() {
   const [message, setMessage] = useState('')
   const [search, setSearch] = useState('')
   const [editingOverlay, setEditingOverlay] = useState(null)
+  const [editorHasUnsavedChanges, setEditorHasUnsavedChanges] = useState(false)
+  const [editorExitGuard, setEditorExitGuard] = useState(null)
 
   async function loadOverlays() {
     setLoading(true)
@@ -88,6 +90,8 @@ function OverlaysView() {
   useEffect(() => {
     loadOverlays()
   }, [])
+
+  // (no persisted draft restore) rely on navigation guard to prompt before leaving editor
 
   const filteredOverlays = useMemo(() => {
     const term = search.toLowerCase().trim()
@@ -166,6 +170,28 @@ function OverlaysView() {
     await loadOverlays()
   }
 
+  const closeEditor = useCallback(async () => {
+    if (typeof editorExitGuard === 'function') {
+      const canLeave = await editorExitGuard()
+      if (!canLeave) return false
+    }
+
+    setEditingOverlay(null)
+    setEditorHasUnsavedChanges(false)
+    setEditorExitGuard(null)
+    return true
+  }, [editorExitGuard])
+
+  useEffect(() => {
+    if (typeof onEditorGuardChange !== 'function') return
+
+    onEditorGuardChange({
+      isEditing: !!editingOverlay,
+      hasUnsavedChanges: editorHasUnsavedChanges,
+      requestExit: closeEditor
+    })
+  }, [closeEditor, editorHasUnsavedChanges, editingOverlay, onEditorGuardChange])
+
   async function handleCopyObsLink(overlayId) {
     const url = getOverlayPublicUrl(overlayId)
 
@@ -201,8 +227,10 @@ function OverlaysView() {
       <OverlayEditor
         overlayId={editingOverlay.id}
         initialOverlay={editingOverlay}
-        onBack={() => setEditingOverlay(null)}
+        onBack={closeEditor}
         onSaved={handleEditorSaved}
+        onDirtyChange={setEditorHasUnsavedChanges}
+        onRegisterExitGuard={setEditorExitGuard}
       />
     )
   }

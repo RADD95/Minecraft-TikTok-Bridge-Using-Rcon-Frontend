@@ -32,6 +32,10 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
     const panelDragRef = useRef(null)
     const fileInputRef = useRef(null)
     const skipHistoryRef = useRef(false)
+    const selectedElementIdRef = useRef('')
+    const keyboardNudgeRef = useRef({ dx: 0, dy: 0, rafId: 0 })
+    const lastSavedSnapshotRef = useRef(JSON.stringify(normalizeOverlay(initialOverlay || {}, overlayId)))
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
     const selectedElement = useMemo(() => {
         return overlay.elements.find((item) => item.id === selectedElementId) || null
@@ -48,6 +52,15 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
         )
     }, [overlay.elements, layerFilter])
 
+    useEffect(() => {
+        selectedElementIdRef.current = selectedElementId
+    }, [selectedElementId])
+
+    useEffect(() => {
+        const snapshot = JSON.stringify(overlay)
+        setHasUnsavedChanges(snapshot !== lastSavedSnapshotRef.current)
+    }, [overlay])
+
     async function loadOverlay() {
         setLoading(true)
         setError('')
@@ -55,7 +68,9 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
         try {
             const data = await apiGet(`/api/overlays/${overlayId}`)
             const normalized = normalizeOverlay(data?.overlay || data, overlayId)
+            lastSavedSnapshotRef.current = JSON.stringify(normalized)
             setOverlay(normalized)
+            setHasUnsavedChanges(false)
             setSelectedElementId('')
         } catch (err) {
             setError(err.message || 'No se pudo cargar el overlay')
@@ -218,6 +233,103 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
         updateElementField(selectedElementId, field, value)
     }
 
+    function flushKeyboardNudge() {
+        keyboardNudgeRef.current.rafId = 0
+
+        const elementId = selectedElementIdRef.current
+        if (!elementId) {
+            keyboardNudgeRef.current.dx = 0
+            keyboardNudgeRef.current.dy = 0
+            return
+        }
+
+        const deltaX = keyboardNudgeRef.current.dx
+        const deltaY = keyboardNudgeRef.current.dy
+
+        if (deltaX === 0 && deltaY === 0) return
+
+        keyboardNudgeRef.current.dx = 0
+        keyboardNudgeRef.current.dy = 0
+
+        setOverlay((prev) => ({
+            ...prev,
+            elements: prev.elements.map((item) => {
+                if (item.id !== elementId) return item
+
+                const currentX = normalizeNumber(item.x, 0)
+                const currentY = normalizeNumber(item.y, 0)
+
+                return {
+                    ...item,
+                    x: currentX + deltaX,
+                    y: currentY + deltaY
+                }
+            })
+        }))
+    }
+
+    function queueKeyboardNudge(deltaX, deltaY) {
+        keyboardNudgeRef.current.dx += deltaX
+        keyboardNudgeRef.current.dy += deltaY
+
+        if (keyboardNudgeRef.current.rafId) return
+
+        keyboardNudgeRef.current.rafId = window.requestAnimationFrame(() => {
+            flushKeyboardNudge()
+        })
+    }
+
+    useEffect(() => {
+        const onKeyDown = (event) => {
+            if (!selectedElementIdRef.current) return
+
+            const target = event.target
+            const tagName = String(target?.tagName || '').toUpperCase()
+            const isTypingTarget =
+                target?.isContentEditable ||
+                tagName === 'INPUT' ||
+                tagName === 'TEXTAREA' ||
+                tagName === 'SELECT'
+
+            if (isTypingTarget) return
+
+            const fineStep = event.ctrlKey || event.metaKey
+            const step = fineStep ? 1 : 5
+
+            switch (event.key) {
+                case 'ArrowUp':
+                    event.preventDefault()
+                    queueKeyboardNudge(0, -step)
+                    break
+                case 'ArrowDown':
+                    event.preventDefault()
+                    queueKeyboardNudge(0, step)
+                    break
+                case 'ArrowLeft':
+                    event.preventDefault()
+                    queueKeyboardNudge(-step, 0)
+                    break
+                case 'ArrowRight':
+                    event.preventDefault()
+                    queueKeyboardNudge(step, 0)
+                    break
+                default:
+                    break
+            }
+        }
+
+        window.addEventListener('keydown', onKeyDown)
+
+        return () => {
+            window.removeEventListener('keydown', onKeyDown)
+
+            if (keyboardNudgeRef.current.rafId) {
+                window.cancelAnimationFrame(keyboardNudgeRef.current.rafId)
+                keyboardNudgeRef.current.rafId = 0
+            }
+        }
+    }, [])
+
     async function deleteElement(elementId) {
         const result = await fireSwal({
             icon: 'warning',
@@ -321,8 +433,11 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
             if (typeof onSaved === 'function') {
                 await onSaved()
             }
+
+            return true
         } catch (err) {
             setError(err.message || 'No se pudo guardar el overlay')
+            return false
         } finally {
             setSaving(false)
         }
@@ -341,6 +456,7 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
         error,
         fileInputRef,
         floatingPanelPos,
+        hasUnsavedChanges,
         handleAddExternalImageClick,
         handleFilePicked,
         handleSave,

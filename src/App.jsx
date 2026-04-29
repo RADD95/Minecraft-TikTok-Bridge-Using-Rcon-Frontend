@@ -47,6 +47,11 @@ function App() {
     rcon: false,
     tiktok: false
   })
+  const [overlayEditorGuard, setOverlayEditorGuard] = useState({
+    isEditing: false,
+    hasUnsavedChanges: false,
+    requestExit: null
+  })
 
   const rconOnline =
     typeof globalStatus?.rcon === 'object'
@@ -82,6 +87,15 @@ function App() {
   }
 
   async function handleLogout() {
+    if (
+      activeView === 'overlays' &&
+      overlayEditorGuard?.isEditing &&
+      typeof overlayEditorGuard?.requestExit === 'function'
+    ) {
+      const canLeaveEditor = await overlayEditorGuard.requestExit()
+      if (!canLeaveEditor) return
+    }
+
     try {
       await apiPost('/api/auth/logout', {})
     } catch { }
@@ -178,7 +192,7 @@ function App() {
             text: 'Configura primero el usuario de TikTok para poder iniciar la conexión.',
             confirmButtonText: 'Ir a Configuración'
           })
-          setActiveView('config')
+          await handleNavigate('config')
           return
         }
 
@@ -191,6 +205,33 @@ function App() {
     } finally {
       setQuickActionLoading((prev) => ({ ...prev, tiktok: false }))
     }
+  }
+
+  async function handleNavigate(nextView) {
+    if (nextView === activeView) return
+    if (activeView === 'overlays') {
+      console.debug('[nav] attempting to navigate from overlays ->', nextView, { overlayEditorGuard, hasGlobalGuard: !!(typeof window !== 'undefined' && typeof window.__overlay_request_exit === 'function') })
+
+      // First try the global guard (set by the editor) to avoid edge cases
+      if (typeof window !== 'undefined' && typeof window.__overlay_request_exit === 'function') {
+        console.debug('[nav] calling global overlay guard')
+        try {
+          const canLeaveEditor = await window.__overlay_request_exit()
+          console.debug('[nav] global guard result:', canLeaveEditor)
+          if (!canLeaveEditor) return
+        } catch (err) {
+          console.debug('[nav] global guard threw', err)
+        }
+      }
+
+      // Then use the structured guard passed via state (if any)
+      if (overlayEditorGuard?.isEditing && typeof overlayEditorGuard?.requestExit === 'function') {
+        const canLeaveEditor = await overlayEditorGuard.requestExit()
+        if (!canLeaveEditor) return
+      }
+    }
+
+    setActiveView(nextView)
   }
 
   const connectSSE = useCallback(() => {
@@ -403,7 +444,7 @@ function App() {
 
             <button
               className={`nav-item ${activeView === 'dashboard' ? 'active' : ''}`}
-              onClick={() => setActiveView('dashboard')}
+              onClick={() => handleNavigate('dashboard')}
             >
               <i className="fa-solid fa-chart-line"></i>
               <span>Dashboard</span>
@@ -411,7 +452,7 @@ function App() {
 
             <button
               className={`nav-item ${activeView === 'config' ? 'active' : ''}`}
-              onClick={() => setActiveView('config')}
+              onClick={() => handleNavigate('config')}
             >
               <i className="fa-solid fa-sliders"></i>
               <span>Configuración</span>
@@ -419,7 +460,7 @@ function App() {
 
             <button
               className={`nav-item ${activeView === 'actions' ? 'active' : ''}`}
-              onClick={() => setActiveView('actions')}
+              onClick={() => handleNavigate('actions')}
             >
               <i className="fa-solid fa-bolt"></i>
               <span>Acciones</span>
@@ -427,7 +468,7 @@ function App() {
 
             <button
               className={`nav-item ${activeView === 'overlays' ? 'active' : ''}`}
-              onClick={() => setActiveView('overlays')}
+              onClick={() => handleNavigate('overlays')}
             >
               <i className="fa-solid fa-layer-group"></i>
               <span>Overlays</span>
@@ -439,7 +480,7 @@ function App() {
 
             <button
               className={`nav-item ${activeView === 'gallery' ? 'active' : ''}`}
-              onClick={() => setActiveView('gallery')}
+              onClick={() => handleNavigate('gallery')}
             >
               <i className="fa-solid fa-store"></i>
               <span>Galeria</span>
@@ -448,7 +489,7 @@ function App() {
             {isAdmin ? (
               <button
                 className={`nav-item ${activeView === 'users' ? 'active' : ''}`}
-                onClick={() => setActiveView('users')}
+                onClick={() => handleNavigate('users')}
               >
                 <i className="fa-solid fa-users"></i>
                 <span>Usuarios</span>
@@ -597,7 +638,9 @@ function App() {
 
         {activeView === 'actions' ? <ActionsView /> : null}
 
-        {activeView === 'overlays' ? <OverlaysView /> : null}
+        {activeView === 'overlays' ? (
+          <OverlaysView onEditorGuardChange={setOverlayEditorGuard} />
+        ) : null}
 
         {activeView === 'gallery' ? <GalleryView user={user} /> : null}
 

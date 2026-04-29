@@ -7,9 +7,17 @@ import useOverlayEditorState from '../hooks/useOverlayEditorState'
 import useOverlayInteractions from '../hooks/useOverlayInteractions'
 import useOverlayLibraries from '../hooks/useOverlayLibraries'
 import useOverlayEditorActions from '../hooks/useOverlayEditorActions'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { fireSwal } from '../utils/swal'
 
-function OverlayEditor({ overlayId, initialOverlay = null, onBack, onSaved }) {
+function OverlayEditor({
+    overlayId,
+    initialOverlay = null,
+    onBack,
+    onSaved,
+    onDirtyChange,
+    onRegisterExitGuard
+}) {
     const [layerFilter, setLayerFilter] = useState('')
     const state = useOverlayEditorState({ overlayId, initialOverlay, onSaved })
     const libraries = useOverlayLibraries()
@@ -62,6 +70,92 @@ function OverlayEditor({ overlayId, initialOverlay = null, onBack, onSaved }) {
         return () => clearTimeout(timer)
     }, [state.loading])
 
+    useEffect(() => {
+        if (typeof onDirtyChange === 'function') {
+            onDirtyChange(state.hasUnsavedChanges)
+        }
+    }, [state.hasUnsavedChanges, onDirtyChange])
+
+    const hasUnsavedRef = useRef(state.hasUnsavedChanges)
+    const handleSaveRef = useRef(state.handleSave)
+
+    useEffect(() => {
+        hasUnsavedRef.current = state.hasUnsavedChanges
+    }, [state.hasUnsavedChanges])
+
+    useEffect(() => {
+        handleSaveRef.current = state.handleSave
+    }, [state.handleSave])
+
+    const confirmLeaveEditor = useCallback(async () => {
+        if (!hasUnsavedRef.current) return true
+
+        const result = await fireSwal({
+            icon: 'warning',
+            title: 'Cambios sin guardar',
+            text: 'Tienes cambios nuevos en este overlay. ¿Qué quieres hacer?',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: 'Guardar y salir',
+            denyButtonText: 'Salir sin guardar',
+            cancelButtonText: 'Cancelar'
+        })
+
+        if (result.isDenied) return true
+        if (!result.isConfirmed) return false
+
+        const saved = await handleSaveRef.current()
+        return !!saved
+    }, [])
+
+    useEffect(() => {
+        if (typeof onRegisterExitGuard !== 'function') return undefined
+
+        // Register guard both via parent callback and a global fallback to avoid
+        // race conditions where the parent state isn't updated in time.
+        onRegisterExitGuard(confirmLeaveEditor)
+        try {
+            window.__overlay_request_exit = confirmLeaveEditor
+            console.debug('[overlay] registered global exit guard')
+        } catch (err) {
+            console.debug('[overlay] failed to set global exit guard', err)
+        }
+
+        return () => {
+            onRegisterExitGuard(null)
+            try {
+                if (window.__overlay_request_exit === confirmLeaveEditor) delete window.__overlay_request_exit
+                console.debug('[overlay] removed global exit guard')
+            } catch (err) {
+                console.debug('[overlay] failed to remove global exit guard', err)
+            }
+        }
+    }, [confirmLeaveEditor, onRegisterExitGuard])
+
+    // (no-op) debugging and draft persistence removed to keep navigation guard behavior deterministic
+
+    useEffect(() => {
+        if (!state.hasUnsavedChanges) return undefined
+
+        const onBeforeUnload = (event) => {
+            event.preventDefault()
+            event.returnValue = ''
+            return ''
+        }
+
+        window.addEventListener('beforeunload', onBeforeUnload)
+
+        return () => {
+            window.removeEventListener('beforeunload', onBeforeUnload)
+        }
+    }, [state.hasUnsavedChanges])
+
+    async function handleBackClick() {
+        const canLeave = await confirmLeaveEditor()
+        if (!canLeave) return
+        onBack?.()
+    }
+
     if (state.loading) {
         return (
             <div className="view">
@@ -87,7 +181,7 @@ function OverlayEditor({ overlayId, initialOverlay = null, onBack, onSaved }) {
                 onAddExternalImage={state.handleAddExternalImageClick}
                 onAddRect={state.addRect}
                 onAddText={state.addText}
-                onBack={onBack}
+                onBack={handleBackClick}
                 onSave={state.handleSave}
                 onSetActiveTool={state.setActiveTool}
                 onSetCanvasPreset={state.setCanvasPreset}
