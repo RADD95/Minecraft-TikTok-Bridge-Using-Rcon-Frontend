@@ -49,7 +49,7 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
         audioVolume: Number.isFinite(Number(action.audioVolume)) ? Number(action.audioVolume) : 70,
         audioWaitForFinish: !!action.audioWaitForFinish,
         audioReplaceCurrent: !!action.audioReplaceCurrent,
-        audioPlayOncePerCombo: action.audioPlayOncePerCombo === true,
+        audioPlayOncePerCombo: !!action.audioPlayOncePerCombo,
         minecraftVersion: action.minecraftVersion || '',
         folder: action.folder || '',
         enabled: action.enabled !== false
