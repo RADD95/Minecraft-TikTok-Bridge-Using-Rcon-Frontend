@@ -1,6 +1,6 @@
 // src/components/ActionFormModal.jsx - Componente modal para crear o editar acciones personalizadas basadas en eventos de TikTok LIVE
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { apiGet, apiPost } from '../api/client'
+import { apiGet, apiPost, resolveBackendUrl } from '../api/client'
 import { fireSwal } from '../utils/swal'
 
 const defaultAction = {
@@ -10,6 +10,12 @@ const defaultAction = {
   command: '',
   useQueue: false,
   repeatPerUnit: true,
+  audioEnabled: false,
+  audioAsset: '',
+  audioVolume: 70,
+  audioWaitForFinish: false,
+  audioReplaceCurrent: false,
+  audioPlayOncePerCombo: false,
   minecraftVersion: '',
   folder: '',
   enabled: true
@@ -23,6 +29,9 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
   const [folders, setFolders] = useState([])
   const [folderSuggestionsOpen, setFolderSuggestionsOpen] = useState(false)
   const [folderLoading, setFolderLoading] = useState(false)
+  const [audioUploading, setAudioUploading] = useState(false)
+  const [previewPlaying, setPreviewPlaying] = useState(false)
+  const previewRef = useRef(null)
   const giftAutocompleteRef = useRef(null)
   const folderAutocompleteRef = useRef(null)
 
@@ -35,6 +44,12 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
         command: action.command || '',
         useQueue: !!action.useQueue,
         repeatPerUnit: !!action.repeatPerUnit,
+        audioEnabled: !!action.audioEnabled,
+        audioAsset: action.audioAsset || '',
+        audioVolume: Number.isFinite(Number(action.audioVolume)) ? Number(action.audioVolume) : 70,
+        audioWaitForFinish: !!action.audioWaitForFinish,
+        audioReplaceCurrent: !!action.audioReplaceCurrent,
+        audioPlayOncePerCombo: action.audioPlayOncePerCombo === true,
         minecraftVersion: action.minecraftVersion || '',
         folder: action.folder || '',
         enabled: action.enabled !== false
@@ -252,10 +267,101 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
       name: form.name.trim(),
       trigger: form.type === 'follow' ? '' : form.trigger.trim(),
       command: form.command.trim(),
+      audioAsset: form.audioAsset.trim(),
+      audioVolume: Math.max(0, Math.min(100, Number.parseInt(form.audioVolume, 10) || 70)),
+      audioWaitForFinish: !!form.audioWaitForFinish,
+      audioReplaceCurrent: !!form.audioReplaceCurrent,
+      audioPlayOncePerCombo: !!form.audioPlayOncePerCombo,
       minecraftVersion: form.minecraftVersion.trim(),
       folder: trimmedFolder,
       enabled: form.enabled
     })
+  }
+
+  async function handleAudioFilePicked(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    if (!file.type.startsWith('audio/')) {
+      await fireSwal({
+        icon: 'warning',
+        title: 'Archivo inválido',
+        text: 'Selecciona un archivo de audio válido',
+        confirmButtonText: 'Entendido'
+      })
+      return
+    }
+
+    try {
+      setAudioUploading(true)
+
+      const dataBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result || ''))
+        reader.onerror = () => reject(new Error('No se pudo leer el archivo'))
+        reader.readAsDataURL(file)
+      })
+
+      const result = await apiPost('/api/cache-audio', {
+        fileName: file.name,
+        mimeType: file.type,
+        dataBase64
+      })
+
+      if (result?.cachedUrl) {
+        setForm((prev) => ({ ...prev, audioAsset: result.cachedUrl }))
+      }
+    } catch (err) {
+      await fireSwal({
+        icon: 'error',
+        title: 'Error subiendo audio',
+        text: err?.message || 'No se pudo cachear el audio',
+        confirmButtonText: 'Entendido'
+      })
+    } finally {
+      setAudioUploading(false)
+    }
+  }
+
+  function stopPreview() {
+    try {
+      if (previewRef.current) {
+        previewRef.current.pause()
+        previewRef.current.currentTime = 0
+        previewRef.current = null
+      }
+    } catch {}
+
+    setPreviewPlaying(false)
+  }
+
+  async function playPreview() {
+    const asset = String(form.audioAsset || '').trim()
+    if (!asset) return
+
+    try {
+      stopPreview()
+      const el = new Audio(resolveBackendUrl(asset))
+      el.volume = Math.max(0, Math.min(1, (Number.parseInt(form.audioVolume, 10) || 70) / 100))
+      previewRef.current = el
+
+      el.onended = () => {
+        setPreviewPlaying(false)
+        previewRef.current = null
+      }
+
+      el.onerror = () => {
+        setPreviewPlaying(false)
+        previewRef.current = null
+      }
+
+      await el.play()
+      setPreviewPlaying(true)
+    } catch {
+      setPreviewPlaying(false)
+    }
   }
 
   return (
@@ -534,6 +640,122 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
               <span className="toggle-hint">Desabilita para desactivar sin eliminar</span>
             </label>
           </div>
+
+          <div className="form-group">
+            <label className="toggle-container">
+              <span className="toggle-label">Activar audio</span>
+              <input
+                type="checkbox"
+                checked={form.audioEnabled}
+                onChange={(e) => setForm((prev) => ({ ...prev, audioEnabled: e.target.checked }))}
+              />
+              <div className="toggle-switch">
+                <span className="toggle-slider"></span>
+              </div>
+              <span className="toggle-hint">Agrega sonido a esta acción</span>
+            </label>
+          </div>
+
+          {form.audioEnabled ? (
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label>Ruta o URL de audio</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Ej: /cache/meow.mp3"
+                value={form.audioAsset}
+                onChange={(e) => setForm((prev) => ({ ...prev, audioAsset: e.target.value }))}
+              />
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                <label className="btn btn-secondary" style={{ cursor: audioUploading ? 'not-allowed' : 'pointer', opacity: audioUploading ? 0.7 : 1 }}>
+                  <i className="fa-solid fa-upload"></i> {audioUploading ? 'Subiendo...' : 'Subir audio'}
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleAudioFilePicked}
+                    disabled={audioUploading}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => (previewPlaying ? stopPreview() : playPreview())}
+                  disabled={!form.audioAsset}
+                >
+                  <i className={`fa-solid ${previewPlaying ? 'fa-stop' : 'fa-play'}`}></i> {previewPlaying ? 'Parar' : 'Reproducir'}
+                </button>
+              </div>
+              <p className="hint-text">Puedes subir MP3, WAV u OGG y se guardará en cache.</p>
+            </div>
+          ) : null}
+
+          {form.audioEnabled ? (
+            <div className="form-group">
+              <label>Volumen de la acción: {form.audioVolume}%</label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={form.audioVolume}
+                className="audio-volume-slider"
+                onChange={(e) => setForm((prev) => ({ ...prev, audioVolume: Number.parseInt(e.target.value, 10) || 0 }))}
+              />
+              <p className="hint-text">Este volumen es por acción. El volumen global de arriba no detiene el audio.</p>
+            </div>
+          ) : null}
+
+          {form.audioEnabled ? (
+            <div className="form-group">
+              <label className="toggle-container">
+                <span className="toggle-label">Esperar a que termine el audio antes de seguir</span>
+                <input
+                  type="checkbox"
+                  checked={form.audioWaitForFinish}
+                  onChange={(e) => setForm((prev) => ({ ...prev, audioWaitForFinish: e.target.checked }))}
+                />
+                <div className="toggle-switch">
+                  <span className="toggle-slider"></span>
+                </div>
+                <span className="toggle-hint">Bloquea solo la secuencia de esta acción mientras suena su audio.</span>
+              </label>
+            </div>
+          ) : null}
+
+          {form.audioEnabled ? (
+            <div className="form-group">
+              <label className="toggle-container">
+                <span className="toggle-label">Reemplazar audios activos al dispararse</span>
+                <input
+                  type="checkbox"
+                  checked={form.audioReplaceCurrent}
+                  onChange={(e) => setForm((prev) => ({ ...prev, audioReplaceCurrent: e.target.checked }))}
+                />
+                <div className="toggle-switch">
+                  <span className="toggle-slider"></span>
+                </div>
+                <span className="toggle-hint">Si lo activas, este audio corta los que estén sonando.</span>
+              </label>
+            </div>
+          ) : null}
+
+          {form.audioEnabled ? (
+            <div className="form-group">
+              <label className="toggle-container">
+                <span className="toggle-label">Reproducir audio 1 sola vez por combo</span>
+                <input
+                  type="checkbox"
+                  checked={form.audioPlayOncePerCombo}
+                  onChange={(e) => setForm((prev) => ({ ...prev, audioPlayOncePerCombo: e.target.checked }))}
+                />
+                <div className="toggle-switch">
+                  <span className="toggle-slider"></span>
+                </div>
+                <span className="toggle-hint">Desactívalo si quieres que el audio suene todas las veces del combo (ej: 20 rosas = 20 sonidos).</span>
+              </label>
+            </div>
+          ) : null}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
             <button type="button" className="btn btn-secondary" onClick={onClose}>

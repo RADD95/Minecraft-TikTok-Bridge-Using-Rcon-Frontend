@@ -1,5 +1,5 @@
 // src/App.jsx - Componente raíz de la aplicación React, maneja autenticación, navegación y estado global
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { apiGet, apiPost, resolveBackendUrl } from './api/client'
 import LoginForm from './components/LoginForm'
 import Dashboard from './components/Dashboard'
@@ -52,6 +52,15 @@ function App() {
     hasUnsavedChanges: false,
     requestExit: null
   })
+  const [globalAudioVolume, setGlobalAudioVolume] = useState(() => {
+    const saved = Number.parseInt(localStorage.getItem('global_audio_volume') || '100', 10)
+    if (!Number.isFinite(saved)) return 100
+    return Math.max(0, Math.min(100, saved))
+  })
+  const [audioMuted, setAudioMuted] = useState(false)
+  const activeAudiosRef = useRef(new Map())
+  const globalAudioVolumeRef = useRef(globalAudioVolume)
+  const audioMutedRef = useRef(audioMuted)
 
   const rconOnline =
     typeof globalStatus?.rcon === 'object'
@@ -64,6 +73,33 @@ function App() {
       : !!globalStatus?.tiktok
 
   const isAdmin = user?.role === 'admin'
+
+  useEffect(() => {
+    localStorage.setItem('global_audio_volume', String(globalAudioVolume))
+  }, [globalAudioVolume])
+
+  useEffect(() => {
+    globalAudioVolumeRef.current = globalAudioVolume
+
+    if (audioMutedRef.current) return
+
+    const masterVolume = Math.max(0, Math.min(100, Number.parseInt(globalAudioVolumeRef.current, 10) || 100)) / 100
+
+    for (const activeAudio of activeAudiosRef.current.values()) {
+      if (!activeAudio?.el) continue
+
+      const actionVolume = Math.max(0, Math.min(1, Number(activeAudio.actionVolume || 1)))
+      activeAudio.el.volume = Math.max(0, Math.min(1, actionVolume * masterVolume))
+    }
+  }, [globalAudioVolume])
+
+  useEffect(() => {
+    audioMutedRef.current = audioMuted
+
+    if (audioMuted) {
+      void stopAllAudios('muted')
+    }
+  }, [audioMuted])
 
   async function checkAuth() {
     try {
@@ -234,10 +270,105 @@ function App() {
     setActiveView(nextView)
   }
 
+  const stopCueAudio = useCallback(async (cueId, reason = 'stopped') => {
+    const activeAudio = activeAudiosRef.current.get(cueId)
+    if (!activeAudio) return
+
+    activeAudiosRef.current.delete(cueId)
+
+    try {
+      activeAudio.el.pause()
+      activeAudio.el.currentTime = 0
+    } catch {}
+
+    try {
+      await apiPost('/api/audio/ack', {
+        cueId,
+        status: 'stopped',
+        reason
+      })
+    } catch {}
+  }, [])
+
+  const stopAllAudios = useCallback(async (reason = 'stopped') => {
+    const cueIds = Array.from(activeAudiosRef.current.keys())
+    for (const cueId of cueIds) {
+      await stopCueAudio(cueId, reason)
+    }
+  }, [stopCueAudio])
+
+  const playCue = useCallback(async (cue) => {
+    if (!cue?.cueId || !cue?.asset) return
+
+    if (audioMutedRef.current) {
+      try {
+        await apiPost('/api/audio/ack', {
+          cueId: cue.cueId,
+          status: 'skipped',
+          reason: 'muted'
+        })
+      } catch {}
+      return
+    }
+
+    try {
+      // Si el audio debe reemplazar los actuales, detener todos
+      if (cue.replaceCurrent) {
+        await stopAllAudios('replaced-by-new')
+      }
+
+      const el = new Audio(resolveBackendUrl(cue.asset))
+      const actionVolume = Math.max(0, Math.min(100, Number.parseInt(cue.volume, 10) || 70)) / 100
+      const masterVolume = Math.max(0, Math.min(100, Number.parseInt(globalAudioVolumeRef.current, 10) || 100)) / 100
+      el.volume = Math.max(0, Math.min(1, actionVolume * masterVolume))
+
+      activeAudiosRef.current.set(cue.cueId, { cueId: cue.cueId, el, actionVolume })
+
+      el.onended = async () => {
+        if (!activeAudiosRef.current.has(cue.cueId)) return
+        activeAudiosRef.current.delete(cue.cueId)
+
+        try {
+          await apiPost('/api/audio/ack', {
+            cueId: cue.cueId,
+            status: 'finished'
+          })
+        } catch {}
+      }
+
+      el.onerror = async () => {
+        if (!activeAudiosRef.current.has(cue.cueId)) return
+        activeAudiosRef.current.delete(cue.cueId)
+
+        try {
+          await apiPost('/api/audio/ack', {
+            cueId: cue.cueId,
+            status: 'error',
+            reason: 'playback-error'
+          })
+        } catch {}
+      }
+
+      await el.play()
+    } catch (error) {
+      if (activeAudiosRef.current.has(cue.cueId)) {
+        activeAudiosRef.current.delete(cue.cueId)
+      }
+
+      try {
+        await apiPost('/api/audio/ack', {
+          cueId: cue.cueId,
+          status: 'error',
+          reason: 'autoplay-blocked'
+        })
+      } catch {}
+    }
+  }, [stopAllAudios])
+
   const connectSSE = useCallback(() => {
     if (!isLogged) return null
 
-    const eventSource = new EventSource(resolveBackendUrl('/api/logs/stream'), {
+    const eventSource = new EventSource(`${resolveBackendUrl('/api/logs/stream')}?userId=${user?.id}`, {
       withCredentials: true
     })
 
@@ -298,8 +429,6 @@ function App() {
             : [
               {
                 id: 'boot-0',
-                time: '--:--',
-                ts: Date.now(),
                 type: 'system',
                 message: 'Sin eventos todavía'
               }
@@ -355,15 +484,38 @@ function App() {
       }
     })
 
+    eventSource.addEventListener('audiocue', (event) => {
+      try {
+        const cue = JSON.parse(event.data)
+        playCue(cue)
+      } catch (err) {
+        console.error('Error SSE audiocue:', err)
+      }
+    })
+
+    eventSource.addEventListener('audiostop', (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (!data?.cueId) return
+
+        stopCueAudio(data.cueId, 'server-stop')
+      } catch (err) {
+        console.error('Error SSE audiostop:', err)
+      }
+    })
+
     eventSource.onerror = (err) => {
       console.error('SSE error:', err)
     }
 
     return () => {
+      if (activeAudiosRef.current.size > 0) {
+        stopAllAudios('sse-disconnect')
+      }
       eventSource.close()
       console.log('SSE desconectado')
     }
-  }, [isLogged])
+  }, [isLogged, playCue, stopAllAudios])
 
 
   useEffect(() => {
@@ -594,6 +746,32 @@ function App() {
                   : 'Iniciando TikTok...'
                 : `TikTok ${tiktokOnline ? 'Online' : 'Offline'}`}
             </button>
+
+            <div className="toolbar-audio-volume">
+              <span className="toolbar-label">Audio global</span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={globalAudioVolume}
+                onChange={(e) => setGlobalAudioVolume(Number.parseInt(e.target.value, 10) || 0)}
+              />
+              <span className="toolbar-label">{globalAudioVolume}%</span>
+              <button
+                className="btn btn-secondary toolbar-btn"
+                onClick={() => setAudioMuted((prev) => !prev)}
+              >
+                <i className={`fa-solid ${audioMuted ? 'fa-volume-xmark' : 'fa-volume-high'}`}></i>{' '}
+                {audioMuted ? 'Reactivar' : 'Mute'}
+              </button>
+
+              <button
+                className="btn btn-secondary toolbar-btn"
+                onClick={() => stopAllAudios('skip-button')}
+              >
+                <i className="fa-solid fa-forward-step"></i> Saltar
+              </button>
+            </div>
           </div>
 
           <div className="global-toolbar-right">
