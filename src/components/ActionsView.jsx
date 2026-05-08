@@ -427,16 +427,19 @@ function ActionsView() {
     }
   }
 
-  async function handleTest(index) {
+  async function handleTest(index, event) {
     setError('')
     setMessage('')
     setTestingIndex(index)
 
     try {
-      const result = await apiPost(`/api/actions/${index}/test`, {})
+      const useCombo = !!event?.shiftKey
+      const result = await apiPost(`/api/actions/${index}/test`, {
+        combo: useCombo
+      })
       const executed = Number(result?.executed || 0)
       const queued = Number(result?.queued || 0)
-      const totalCommands = Array.isArray(result?.commands) ? result.commands.length : 0
+      const totalCommands = Number(result?.estimatedCommands || 0)
 
       setMessage(`Test enviado: ${totalCommands} cmd(s) · ejecutados ${executed} · en cola ${queued}`)
     } catch (err) {
@@ -636,7 +639,7 @@ function ActionsView() {
                                       <div className="action-controls">
                                         <button
                                           className="btn-icon"
-                                          onClick={() => handleTest(originalIndex)}
+                                          onClick={(event) => handleTest(originalIndex, event)}
                                           disabled={testingIndex !== null || isFolderDisabled}
                                           title="Probar acción"
                                         >
