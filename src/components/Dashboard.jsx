@@ -60,7 +60,8 @@ function Dashboard({
       : 0
 
     let etaText = ''
-    if (completedCommands > 0 && item?.startedAt && totalCommands > completedCommands) {
+    // Ocultar ETA si la acción tiene audio ya que no refleja bien la espera real
+    if (!item?.hasAudio && completedCommands > 0 && item?.startedAt && totalCommands > completedCommands) {
       const elapsed = Date.now() - Number(item.startedAt || Date.now())
       const perCommand = elapsed / completedCommands
       const remainingMs = Math.max(0, Math.round(perCommand * (totalCommands - completedCommands)))
