@@ -659,7 +659,7 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
               <input
                 type="text"
                 className="input-field"
-                placeholder="Ej: /cache/meow.mp3"
+                placeholder="Ej: /cache/audio/meow.mp3"
                 value={form.audioAsset}
                 onChange={(e) => setForm((prev) => ({ ...prev, audioAsset: e.target.value }))}
               />
