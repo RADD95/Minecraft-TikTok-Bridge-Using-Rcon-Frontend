@@ -288,11 +288,11 @@ function Dashboard({
                         className="queue-item"
                       >
                         <div className="queue-item-title">
-                          {item.source || 'evento'} · {item.type || 'evento'}
+                          {item.actionName || item.source || 'evento'}
                         </div>
 
                         <div className="queue-item-meta">
-                          {item.mode || 'directo'} · {item.comboIterations ?? 1} iteración(es)
+                          {item.type || 'evento'} · {item.mode || 'directo'} · {item.comboIterations ?? 1} iteración(es)
                         </div>
                       </div>
                     ))
