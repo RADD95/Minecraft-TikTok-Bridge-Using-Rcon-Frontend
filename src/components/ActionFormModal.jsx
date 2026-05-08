@@ -13,7 +13,6 @@ const defaultAction = {
   audioEnabled: false,
   audioAsset: '',
   audioVolume: 70,
-  audioWaitForFinish: false,
   audioReplaceCurrent: false,
   audioPlayOncePerCombo: false,
   minecraftVersion: '',
@@ -47,7 +46,6 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
         audioEnabled: !!action.audioEnabled,
         audioAsset: action.audioAsset || '',
         audioVolume: Number.isFinite(Number(action.audioVolume)) ? Number(action.audioVolume) : 70,
-        audioWaitForFinish: !!action.audioWaitForFinish,
         audioReplaceCurrent: !!action.audioReplaceCurrent,
         audioPlayOncePerCombo: !!action.audioPlayOncePerCombo,
         minecraftVersion: action.minecraftVersion || '',
@@ -269,7 +267,6 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
       command: form.command.trim(),
       audioAsset: form.audioAsset.trim(),
       audioVolume: Math.max(0, Math.min(100, Number.parseInt(form.audioVolume, 10) || 70)),
-      audioWaitForFinish: !!form.audioWaitForFinish,
       audioReplaceCurrent: !!form.audioReplaceCurrent,
       audioPlayOncePerCombo: !!form.audioPlayOncePerCombo,
       minecraftVersion: form.minecraftVersion.trim(),
@@ -703,23 +700,6 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
                 onChange={(e) => setForm((prev) => ({ ...prev, audioVolume: Number.parseInt(e.target.value, 10) || 0 }))}
               />
               <p className="hint-text">Este volumen es por acción. El volumen global de arriba no detiene el audio.</p>
-            </div>
-          ) : null}
-
-          {form.audioEnabled ? (
-            <div className="form-group">
-              <label className="toggle-container">
-                <span className="toggle-label">Esperar a que termine el audio antes de seguir</span>
-                <input
-                  type="checkbox"
-                  checked={form.audioWaitForFinish}
-                  onChange={(e) => setForm((prev) => ({ ...prev, audioWaitForFinish: e.target.checked }))}
-                />
-                <div className="toggle-switch">
-                  <span className="toggle-slider"></span>
-                </div>
-                <span className="toggle-hint">Bloquea solo la secuencia de esta acción mientras suena su audio.</span>
-              </label>
             </div>
           ) : null}
 
