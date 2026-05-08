@@ -33,6 +33,50 @@ function Dashboard({
     ? status.executions.activeList
     : []
 
+  function formatDuration(ms) {
+    const safeMs = Math.max(0, Number(ms) || 0)
+    const seconds = Math.ceil(safeMs / 1000)
+
+    if (seconds < 60) return `${seconds}s`
+
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+
+    if (minutes < 60) return `${minutes}m ${remainingSeconds}s`
+
+    const hours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
+    return `${hours}h ${remainingMinutes}m`
+  }
+
+  function getExecutionProgress(item) {
+    const progress = item?.progress || {}
+    const totalCommands = Number(progress.totalCommands ?? item?.totalCommands ?? 0)
+    const completedCommands = Number(progress.completedCommands ?? 0)
+    const totalIterations = Number(progress.totalIterations ?? item?.totalIterations ?? 1)
+    const completedIterations = Number(progress.completedIterations ?? 0)
+    const percent = totalCommands > 0
+      ? Math.min(100, Math.round((completedCommands / totalCommands) * 100))
+      : 0
+
+    let etaText = ''
+    if (completedCommands > 0 && item?.startedAt && totalCommands > completedCommands) {
+      const elapsed = Date.now() - Number(item.startedAt || Date.now())
+      const perCommand = elapsed / completedCommands
+      const remainingMs = Math.max(0, Math.round(perCommand * (totalCommands - completedCommands)))
+      etaText = formatDuration(remainingMs)
+    }
+
+    return {
+      totalCommands,
+      completedCommands,
+      totalIterations,
+      completedIterations,
+      percent,
+      etaText
+    }
+  }
+
   useEffect(() => {
     if (!autoScroll) return
     if (!consoleRef.current) return
@@ -292,7 +336,20 @@ function Dashboard({
                         </div>
 
                         <div className="queue-item-meta">
-                          {item.type || 'evento'} · {item.mode || 'directo'} · {item.comboIterations ?? 1} iteración(es)
+                            {item.triggeredBy || 'Sin origen'} · {item.type || 'evento'} · {item.mode || 'directo'}
+                          </div>
+
+                          <div className="queue-item-meta">
+                            {(() => {
+                              const progress = getExecutionProgress(item)
+                              const base = progress.totalCommands > 0
+                                ? `${progress.completedCommands}/${progress.totalCommands} cmd(s)`
+                                : `${progress.completedIterations}/${progress.totalIterations} iteración(es)`
+
+                              return progress.etaText
+                                ? `${base} · ${progress.percent}% · quedan ~${progress.etaText}`
+                                : `${base} · ${progress.percent}%`
+                            })()}
                         </div>
                       </div>
                     ))
