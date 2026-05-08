@@ -29,6 +29,9 @@ function Dashboard({
   const queuePendingList = Array.isArray(status?.queue?.pendingList)
     ? status.queue.pendingList
     : []
+  const activeExecutions = Array.isArray(status?.executions?.activeList)
+    ? status.executions.activeList
+    : []
 
   useEffect(() => {
     if (!autoScroll) return
@@ -251,6 +254,54 @@ function Dashboard({
         </div>
 
         
+          {status?.executions && (
+            <div className="card card-queue">
+              <div className="card-header card-queue-header">
+                <div className="card-title">
+                  <i className="fa-solid fa-bolt"></i>
+                  Ejecuciones activas
+                </div>
+              </div>
+
+              <div className="queue-body">
+                <div className="queue-summary">
+                  <span>Total activas: {activeExecutions.length}</span>
+
+                  <span
+                    className={`status-indicator ${
+                      activeExecutions.length > 0 ? 'processing' : 'idle'
+                    }`}
+                  >
+                    {activeExecutions.length > 0 ? 'En curso' : 'Sin actividad'}
+                  </span>
+                </div>
+
+                <div className="queue-list">
+                  {activeExecutions.length === 0 ? (
+                    <div className="queue-empty-box">
+                      No hay ejecuciones activas ahora mismo
+                    </div>
+                  ) : (
+                    activeExecutions.map((item) => (
+                      <div
+                        key={item.id || `${item.source}-${item.startedAt || 'na'}`}
+                        className="queue-item"
+                      >
+                        <div className="queue-item-title">
+                          {item.source || 'evento'} · {item.type || 'evento'}
+                        </div>
+
+                        <div className="queue-item-meta">
+                          {item.mode || 'directo'} · {item.comboIterations ?? 1} iteración(es)
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {status?.queue && (
             <div className="card card-queue">
               <div className="card-header card-queue-header">

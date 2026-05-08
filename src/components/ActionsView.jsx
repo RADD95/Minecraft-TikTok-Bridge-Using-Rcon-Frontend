@@ -15,7 +15,7 @@ function ActionsView() {
   const [filterType, setFilterType] = useState('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
-  const [testingIndex, setTestingIndex] = useState(null)
+  const [testingIndices, setTestingIndices] = useState(() => new Set())
   const [expandedFolders, setExpandedFolders] = useState(new Set([''])) // '' es para acciones sin carpeta
 
   async function loadActions() {
@@ -430,7 +430,11 @@ function ActionsView() {
   async function handleTest(index, event) {
     setError('')
     setMessage('')
-    setTestingIndex(index)
+    setTestingIndices((prev) => {
+      const next = new Set(prev)
+      next.add(index)
+      return next
+    })
 
     try {
       const useCombo = !!event?.shiftKey
@@ -445,7 +449,11 @@ function ActionsView() {
     } catch (err) {
       setError(err.message || 'No se pudo ejecutar el test de la acción')
     } finally {
-      setTestingIndex(null)
+      setTestingIndices((prev) => {
+        const next = new Set(prev)
+        next.delete(index)
+        return next
+      })
     }
   }
 
@@ -640,12 +648,12 @@ function ActionsView() {
                                         <button
                                           className="btn-icon"
                                           onClick={(event) => handleTest(originalIndex, event)}
-                                          disabled={testingIndex !== null || isFolderDisabled}
+                                          disabled={isFolderDisabled}
                                           title="Probar acción"
                                         >
                                           <i
                                             className={`fa-solid ${
-                                              testingIndex === originalIndex ? 'fa-spinner fa-spin' : 'fa-play'
+                                              testingIndices.has(originalIndex) ? 'fa-spinner fa-spin' : 'fa-play'
                                             }`}
                                           ></i>
                                         </button>

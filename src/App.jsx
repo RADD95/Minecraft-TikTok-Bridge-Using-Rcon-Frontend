@@ -24,6 +24,9 @@ function App() {
       isProcessing: false,
       currentGroup: null,
       lastGroupFinishedAt: null
+    },
+    executions: {
+      activeList: []
     }
   })
   const [globalStats, setGlobalStats] = useState({
@@ -148,6 +151,9 @@ function App() {
         isProcessing: false,
         currentGroup: null,
         lastGroupFinishedAt: null
+      },
+      executions: {
+        activeList: []
       }
     })
     setGlobalStats({
