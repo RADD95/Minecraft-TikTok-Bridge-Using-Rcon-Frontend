@@ -381,6 +381,11 @@ function GalleryView({ user }) {
 
                   <div className="gallery-card-header-right">
                     <div className="action-controls">
+                      {item.audioEnabled || (item.audioAsset && String(item.audioAsset).trim() !== '') ? (
+                        <span title="Contiene audio" style={{ marginRight: '0.5rem', color: 'var(--accent-mc)' }}>
+                          <i className="fa-solid fa-volume-high"></i>
+                        </span>
+                      ) : null}
                       <button
                         className="btn-icon"
                         onClick={(e) => {

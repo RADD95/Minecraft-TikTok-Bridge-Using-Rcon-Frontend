@@ -31,6 +31,7 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
   const [audioUploading, setAudioUploading] = useState(false)
   const [previewPlaying, setPreviewPlaying] = useState(false)
   const previewRef = useRef(null)
+  const [audioMarkedForRemoval, setAudioMarkedForRemoval] = useState(false)
   const giftAutocompleteRef = useRef(null)
   const folderAutocompleteRef = useRef(null)
 
@@ -309,6 +310,8 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
 
       if (result?.cachedUrl) {
         setForm((prev) => ({ ...prev, audioAsset: result.cachedUrl }))
+        // New upload overrides any pending removal
+        setAudioMarkedForRemoval(false)
       }
     } catch (err) {
       await fireSwal({
@@ -683,8 +686,24 @@ function ActionFormModal({ open, action, onClose, onSave, onFoldersUpdate }) {
                 >
                   <i className={`fa-solid ${previewPlaying ? 'fa-stop' : 'fa-play'}`}></i> {previewPlaying ? 'Parar' : 'Reproducir'}
                 </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => {
+                    // Mark audio for removal locally; actual deletion happens on save
+                    setForm((prev) => ({ ...prev, audioAsset: '', audioEnabled: false }))
+                    setAudioMarkedForRemoval(true)
+                    stopPreview()
+                  }}
+                  title="Eliminar audio (se aplicará al guardar)"
+                >
+                  <i className="fa-solid fa-trash"></i> Eliminar
+                </button>
               </div>
               <p className="hint-text">Puedes subir MP3, WAV u OGG y se guardará en cache.</p>
+              {audioMarkedForRemoval ? (
+                <p className="hint-text" style={{ color: 'var(--danger)' }}>El audio será eliminado al guardar los cambios.</p>
+              ) : null}
             </div>
           ) : null}
 
