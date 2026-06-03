@@ -346,6 +346,15 @@ function useOverlayInteractions({
         function onKeyDown(event) {
             const key = event.key.toLowerCase()
             const mod = event.ctrlKey || event.metaKey
+            const target = event.target
+            const tagName = String(target?.tagName || '').toUpperCase()
+            const isTypingTarget =
+                target?.isContentEditable ||
+                tagName === 'INPUT' ||
+                tagName === 'TEXTAREA' ||
+                tagName === 'SELECT'
+
+            if (isTypingTarget) return
 
             if (key === ' ') {
                 event.preventDefault()

@@ -14,7 +14,7 @@ function LoginForm({ onLogin }) {
     event.preventDefault()
     setError('')
 
-    if (!form.username.trim() || !form.password.trim()) {
+    if (!form.username.trim() || !form.password.trim()) {f
       setError('Escribe usuario y contraseña')
       return
     }
@@ -43,7 +43,6 @@ function LoginForm({ onLogin }) {
     <div className="screen center login-bg">
       <form className="card login-card" onSubmit={handleSubmit}>
         <h1>Minecraft TikTok Bridge</h1>
-        <p>Frontend separado con React</p>
 
         <label htmlFor="username">Usuario</label>
         <input
