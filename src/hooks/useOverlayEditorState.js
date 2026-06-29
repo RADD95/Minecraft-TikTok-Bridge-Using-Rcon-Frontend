@@ -200,19 +200,36 @@ function useOverlayEditorState({ overlayId, initialOverlay = null, onSaved }) {
         }
     }
 
-    function handleFilePicked(event) {
-        const file = event.target.files?.[0]
-        if (!file) return
+function handleFilePicked(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
 
-        const reader = new FileReader()
-        reader.onload = () => {
-            const result = String(reader.result || '')
-            const type = file.type === 'image/gif' || isGifUrl(file.name) ? 'gif' : 'image'
-            addElement(createImageElement(result, file.name || 'Imagen subida', type))
-            if (fileInputRef.current) fileInputRef.current.value = ''
+    const reader = new FileReader()
+    reader.onload = async () => {
+        const dataBase64 = String(reader.result || '')
+        if (fileInputRef.current) fileInputRef.current.value = ''
+
+        const type = file.type === 'image/gif' || isGifUrl(file.name) ? 'gif' : 'image'
+
+        try {
+            // Subir al servidor y obtener ruta /cache/img/...
+            const cached = await apiPost('/api/cache-image', {
+                dataBase64,
+                fileName: file.name
+            })
+
+            const finalUrl = cached?.cachedUrl
+                ? resolveBackendUrl(cached.cachedUrl)
+                : dataBase64  // fallback temporal si el servidor falla
+
+            addElement(createImageElement(finalUrl, file.name || 'Imagen subida', type))
+        } catch {
+            // Si el upload falla, usar base64 como fallback local (no se guardará bien en BD)
+            addElement(createImageElement(dataBase64, file.name || 'Imagen subida', type))
         }
-        reader.readAsDataURL(file)
     }
+    reader.readAsDataURL(file)
+}
 
     function updateElementField(elementId, field, value) {
         setOverlay((prev) => ({
